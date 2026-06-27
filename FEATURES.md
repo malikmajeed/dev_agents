@@ -3,12 +3,12 @@
 ## User authentication
 **Status:** in_progress 🔄  
 **Priority:** high  
-**Note:** Sub-task blocked: Frontend: LoginPage.jsx, RegisterPage.jsx, ProtectedRoute.jsx wrapper component  
+**Note:** Sub-task blocked: Wiring: AuthContext.jsx stores token in memory, axios interceptor attaches Bearer token to all requests  
 **Sub-tasks:**
 - [~] Backend: User model (models/User.js) with email, password, role fields. bcrypt hashing on save.
 - [~] API: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me — JWT issued on login
 - [~] Frontend: LoginPage.jsx, RegisterPage.jsx, ProtectedRoute.jsx wrapper component
-- [ ] Wiring: AuthContext.jsx stores token in memory, axios interceptor attaches Bearer token to all requests
+- [~] Wiring: AuthContext.jsx stores token in memory, axios interceptor attaches Bearer token to all requests
 
 ---
 

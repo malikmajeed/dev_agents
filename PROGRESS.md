@@ -1,6 +1,6 @@
 # Agent Progress
 
-_Last updated: 2026-06-27T21:15:25.595346+00:00_
+_Last updated: 2026-06-27T21:21:32.630979+00:00_
 
 **State:** 💤 `idle`  
 **Feature:** —  
@@ -8,11 +8,11 @@ _Last updated: 2026-06-27T21:15:25.595346+00:00_
 **Branch:** —  
 **PR:** —  
 **Repos:** dual (backend + frontend)  
-**Last action:** Blocked: Frontend: LoginPage.jsx, RegisterPage.jsx, ProtectedRoute.jsx wrapper component
+**Last action:** Blocked: Wiring: AuthContext.jsx stores token in memory, axios interceptor attaches Bearer token to all requests
 
 ```json
 {
   "state": "idle",
-  "last_action": "Blocked: Frontend: LoginPage.jsx, RegisterPage.jsx, ProtectedRoute.jsx wrapper component"
+  "last_action": "Blocked: Wiring: AuthContext.jsx stores token in memory, axios interceptor attaches Bearer token to all requests"
 }
 ```
