@@ -157,7 +157,7 @@ jobs:
       - name: Run DevAgent orchestrator
         env:
           HF_API_KEY:           ${{ secrets.HF_API_KEY }}
-          HF_MODEL:             ${{ vars.HF_MODEL || 'mistralai/Mistral-7B-Instruct-v0.3' }}
+          HF_MODEL:             ${{ vars.HF_MODEL || 'openai/gpt-oss-120b:fastest' }}
 
           GMAIL_USER:           ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASS:       ${{ secrets.GMAIL_APP_PASS }}
