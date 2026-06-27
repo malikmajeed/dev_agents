@@ -7,6 +7,13 @@ DevAgent supports **separate GitHub repos** for backend and frontend.
 Set these GitHub Actions **variables** (Settings → Secrets and variables → Actions → Variables):
 
 ```
+BACKEND_REPOSITORY=malikmajeed/dms-backend
+FRONTEND_REPOSITORY=malikmajeed/dms-frontend
+```
+
+Full URLs also work (auto-normalized to `owner/repo`):
+
+```
 BACKEND_REPOSITORY=https://github.com/malikmajeed/dms-backend.git
 FRONTEND_REPOSITORY=https://github.com/malikmajeed/dms-frontend.git
 ```

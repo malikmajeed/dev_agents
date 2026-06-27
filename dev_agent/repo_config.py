@@ -17,6 +17,17 @@ from pathlib import Path
 from utils import log
 
 
+def normalize_github_slug(value: str) -> str:
+    """Convert owner/repo, URL, or git@github.com:owner/repo.git → owner/repo."""
+    v = (value or "").strip()
+    if not v:
+        return ""
+    v = re.sub(r"^https?://github\.com/", "", v)
+    v = re.sub(r"^git@github\.com:", "", v)
+    v = v.removesuffix(".git").strip("/")
+    return v
+
+
 @dataclass
 class RepoLayout:
     control_root: Path
@@ -28,14 +39,16 @@ class RepoLayout:
     def load(cls, control_root: Path | None = None) -> "RepoLayout":
         root = Path(control_root or os.environ.get("REPO_ROOT", Path(__file__).parent.parent))
         control_repo = os.environ.get("GITHUB_REPOSITORY", "")
-        backend_repo = os.environ.get("BACKEND_REPOSITORY", "").strip() or None
-        frontend_repo = os.environ.get("FRONTEND_REPOSITORY", "").strip() or None
+        backend_repo = normalize_github_slug(os.environ.get("BACKEND_REPOSITORY", "")) or None
+        frontend_repo = normalize_github_slug(os.environ.get("FRONTEND_REPOSITORY", "")) or None
 
         repos_file = root / "REPOS.md"
         if repos_file.exists():
             b, f = _parse_repos_md(repos_file.read_text())
-            backend_repo = backend_repo or b
-            frontend_repo = frontend_repo or f
+            backend_repo = backend_repo or normalize_github_slug(b or "")
+            frontend_repo = frontend_repo or normalize_github_slug(f or "")
+        backend_repo = backend_repo or None
+        frontend_repo = frontend_repo or None
 
         layout = cls(root, control_repo, backend_repo, frontend_repo)
         if layout.dual_repo:
