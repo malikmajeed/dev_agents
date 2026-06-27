@@ -19,6 +19,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# One run at a time — prevents push races on main / feature branches
+concurrency:
+  group: dev-agent-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   dev-agent:
     runs-on: ubuntu-latest
@@ -133,6 +138,23 @@ jobs:
         run: |
           git config user.name  "DevAgent"
           git config user.email "dev-agent@noreply.local"
+
+      - name: Sync all repos with remote
+        run: |
+          sync_repo() {
+            local dir="$1"
+            [ -d "$dir/.git" ] || return 0
+            branch=$(git -C "$dir" rev-parse --abbrev-ref HEAD)
+            git -C "$dir" fetch origin
+            git -C "$dir" pull --rebase origin "$branch" || {
+              echo "::warning::Rebase failed in $dir — resetting to origin/$branch"
+              git -C "$dir" rebase --abort 2>/dev/null || true
+              git -C "$dir" reset --hard "origin/$branch"
+            }
+          }
+          sync_repo "."
+          sync_repo "backend"
+          sync_repo "frontend"
 
       - name: Set up Python
         uses: actions/setup-python@v5

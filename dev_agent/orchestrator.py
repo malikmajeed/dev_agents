@@ -100,6 +100,12 @@ def main():
     LAYOUT = RepoLayout.load(REPO_ROOT)
     log("=== DevAgent v2 orchestrator starting ===")
 
+    # Sync all repos before any work — avoids non-fast-forward push failures
+    pr_manager.sync_repo(REPO_ROOT)
+    if LAYOUT.dual_repo:
+        pr_manager.sync_repo(LAYOUT.backend_root)
+        pr_manager.sync_repo(LAYOUT.frontend_root)
+
     # ── 0. First run: generate FEATURES.md ────────────────────────────────────
     if not FEATURES_FILE.exists():
         if not PROJECT_FILE.exists():

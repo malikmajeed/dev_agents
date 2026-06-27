@@ -2,7 +2,7 @@
 GitHub PR Manager — mono-repo or separate backend / frontend repositories.
 """
 
-import os, subprocess, requests
+import os, subprocess, time, requests
 from pathlib import Path
 from repo_config import RepoLayout
 from utils import log
@@ -35,14 +35,75 @@ def slugify(name: str) -> str:
 
 # ── Git helpers ────────────────────────────────────────────────────────────────
 
+def _git_env() -> dict:
+    return {
+        **os.environ,
+        "GIT_AUTHOR_NAME":  "DevAgent",
+        "GIT_AUTHOR_EMAIL": "dev-agent@noreply.local",
+        "GIT_COMMITTER_NAME":  "DevAgent",
+        "GIT_COMMITTER_EMAIL": "dev-agent@noreply.local",
+    }
+
+
 def git(cmd: list[str], cwd: Path, check=True):
     subprocess.run(
-        ["git"] + cmd, cwd=cwd, check=check,
-        env={**os.environ, "GIT_AUTHOR_NAME": "DevAgent",
-             "GIT_AUTHOR_EMAIL": "dev-agent@noreply.local",
-             "GIT_COMMITTER_NAME": "DevAgent",
-             "GIT_COMMITTER_EMAIL": "dev-agent@noreply.local"},
+        ["git"] + cmd, cwd=cwd, check=check, env=_git_env(),
     )
+
+
+def _current_branch(repo_root: Path) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo_root, capture_output=True, text=True, env=_git_env(),
+    )
+    return result.stdout.strip() or "main"
+
+
+def _sync_with_remote(repo_root: Path, hard_reset: bool = False) -> bool:
+    """Fetch and rebase current branch onto origin. Returns False on conflict."""
+    branch = _current_branch(repo_root)
+    git(["fetch", "origin"], repo_root)
+    result = subprocess.run(
+        ["git", "pull", "--rebase", "origin", branch],
+        cwd=repo_root, capture_output=True, text=True, env=_git_env(),
+    )
+    if result.returncode == 0:
+        return True
+    log(f"PR: rebase failed on '{branch}' — {result.stderr.strip()[:200]}")
+    subprocess.run(
+        ["git", "rebase", "--abort"], cwd=repo_root, env=_git_env(),
+    )
+    if hard_reset:
+        git(["reset", "--hard", f"origin/{branch}"], repo_root)
+        log(f"PR: reset '{branch}' to origin/{branch}")
+        return True
+    return False
+
+
+def _push(repo_root: Path, label: str = "", retries: int = 4) -> bool:
+    """Pull --rebase then push. Retries on non-fast-forward races."""
+    branch = _current_branch(repo_root)
+    for attempt in range(1, retries + 1):
+        if not _sync_with_remote(repo_root):
+            time.sleep(2 * attempt)
+            continue
+        result = subprocess.run(
+            ["git", "push", "-u", "origin", branch],
+            cwd=repo_root, capture_output=True, text=True, env=_git_env(),
+        )
+        if result.returncode == 0:
+            return True
+        err = (result.stderr or result.stdout or "").strip()
+        log(f"PR [{label}]: push attempt {attempt}/{retries} failed — {err[:200]}")
+        time.sleep(2 * attempt)
+    return False
+
+
+def sync_repo(repo_root: Path) -> bool:
+    """Public: sync repo with remote at start of a run."""
+    if not _has_git(repo_root):
+        return True
+    return _sync_with_remote(repo_root, hard_reset=True)
 
 
 def _has_git(repo_root: Path) -> bool:
@@ -64,6 +125,7 @@ def ensure_branch(branch: str, base: str, layout: RepoLayout, target: str):
         git(["fetch", "origin", branch], repo_root)
         git(["checkout", branch], repo_root)
         git(["pull", "origin", branch, "--rebase"], repo_root)
+        git(["branch", "--set-upstream-to", f"origin/{branch}"], repo_root, check=False)
         log(f"PR [{target}]: switched to '{branch}'")
     else:
         git(["fetch", "origin", base], repo_root)
@@ -90,8 +152,10 @@ def ensure_staging(layout: RepoLayout, target: str):
     if "staging" not in result.stdout:
         git(["fetch", "origin", "main"], repo_root)
         git(["checkout", "-b", "staging", "origin/main"], repo_root)
-        git(["push", "-u", "origin", "staging"], repo_root)
-        log(f"PR [{target}]: created staging from main")
+        if not _push(repo_root, target):
+            log(f"PR [{target}]: failed to push new staging branch")
+        else:
+            log(f"PR [{target}]: created staging from main")
 
 
 def ensure_all_staging(layout: RepoLayout):
@@ -107,8 +171,14 @@ def _commit_one(message: str, layout: RepoLayout, target: str) -> bool:
     if not _has_git(repo_root):
         return False
 
+    label = layout.repo_label(target)
     git(["config", "user.email", "dev-agent@noreply.local"], repo_root)
     git(["config", "user.name", "DevAgent"], repo_root)
+
+    if not _sync_with_remote(repo_root):
+        log(f"PR [{label}]: could not sync before commit — skipping")
+        return False
+
     git(["add", "-A"], repo_root)
     result = subprocess.run(
         ["git", "diff", "--cached", "--quiet"], cwd=repo_root,
@@ -117,8 +187,9 @@ def _commit_one(message: str, layout: RepoLayout, target: str) -> bool:
         return False
 
     git(["commit", "-m", message], repo_root)
-    git(["push", "-u", "origin", "HEAD"], repo_root)
-    label = layout.repo_label(target)
+    if not _push(repo_root, label):
+        log(f"PR [{label}]: commit created locally but push failed — '{message}'")
+        return False
     log(f"PR [{label}]: committed '{message}'")
     return True
 
