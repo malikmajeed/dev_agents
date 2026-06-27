@@ -3,7 +3,7 @@ Emailer v2 — Gmail SMTP send + IMAP reply checking.
 Includes PR links in feature-complete emails.
 """
 
-import os, smtplib, imaplib, email as emaillib
+import os, re, html, smtplib, imaplib, email as emaillib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from utils import log
@@ -47,14 +47,146 @@ def _base(content: str) -> str:
 """
 
 
+def _esc(text: str) -> str:
+    return html.escape(text or "")
+
+
+def _parse_features_md(content: str) -> list[dict]:
+    """Parse FEATURES.md text into feature dicts for email rendering."""
+    features = []
+    for block in re.split(r"\n## ", content)[1:]:
+        lines = block.strip().split("\n")
+        if not lines:
+            continue
+        name, status, priority, subtasks = lines[0].strip(), "pending", "medium", []
+        for line in lines[1:]:
+            m = re.search(r"\*\*Status:\*\*\s*(\S+)", line)
+            if m:
+                status = m.group(1).strip().rstrip("*").rstrip("✅🔄❌⏳🔁")
+            m = re.search(r"\*\*Priority:\*\*\s*(\S+)", line)
+            if m:
+                priority = m.group(1).strip().rstrip("*")
+            m = re.match(r"\s*-\s*\[([ xXpP~])\]\s*(.+)", line)
+            if m:
+                subtasks.append(m.group(2).strip())
+        features.append({
+            "name": name, "status": status,
+            "priority": priority, "subtasks": subtasks,
+        })
+    return features
+
+
+def _subtask_badge(text: str) -> tuple[str, str, str]:
+    """Return (label, icon, color) for a sub-task line."""
+    t = text.lower()
+    if t.startswith("backend"):
+        return "Backend", "⚙️", "#6366f1"
+    if t.startswith("api"):
+        return "API", "🔌", "#8b5cf6"
+    if t.startswith("frontend"):
+        return "Frontend", "🖥️", "#0ea5e9"
+    if t.startswith("wiring"):
+        return "Wiring", "🔗", "#10b981"
+    return "Task", "📌", "#64748b"
+
+
+def _priority_style(priority: str) -> tuple[str, str]:
+    p = priority.lower()
+    if p == "high":
+        return "#fef2f2", "#dc2626"
+    if p == "low":
+        return "#f0fdf4", "#16a34a"
+    return "#fffbeb", "#d97706"
+
+
+def _features_plan_html(features_md: str) -> str:
+    """Render FEATURES.md as styled HTML cards for email."""
+    features = _parse_features_md(features_md)
+    if not features:
+        return f'<p style="color:#666">{_esc(features_md[:500])}</p>'
+
+    high = sum(1 for f in features if f["priority"].lower() == "high")
+    cards = []
+
+    for i, feat in enumerate(features, 1):
+        bg, fg = _priority_style(feat["priority"])
+        sub_rows = ""
+        for st in feat["subtasks"]:
+            label, icon, color = _subtask_badge(st)
+            desc = st.split(":", 1)[1].strip() if ":" in st else st
+            sub_rows += f"""
+            <tr>
+              <td style="padding:8px 0;vertical-align:top;width:28px;font-size:16px">{icon}</td>
+              <td style="padding:8px 0;vertical-align:top">
+                <span style="display:inline-block;background:{color};color:#fff;font-size:10px;
+                  font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:0.5px;
+                  text-transform:uppercase">{_esc(label)}</span>
+                <div style="color:#374151;font-size:13px;line-height:1.5;margin-top:4px">{_esc(desc)}</div>
+              </td>
+            </tr>"""
+
+        cards.append(f"""
+        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;
+          padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td>
+                <span style="color:#9ca3af;font-size:12px;font-weight:600">#{i}</span>
+                <h3 style="margin:4px 0 0;font-size:17px;color:#111827;font-weight:600">
+                  {_esc(feat["name"])}
+                </h3>
+              </td>
+              <td style="text-align:right;vertical-align:top">
+                <span style="display:inline-block;background:{bg};color:{fg};font-size:11px;
+                  font-weight:700;padding:4px 10px;border-radius:20px;text-transform:uppercase">
+                  {_esc(feat["priority"])}
+                </span>
+              </td>
+            </tr>
+          </table>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px">
+            {sub_rows}
+          </table>
+        </div>""")
+
+    return f"""
+    <div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);border-radius:12px;
+      padding:20px 24px;margin:20px 0;color:#fff">
+      <div style="font-size:28px;font-weight:700">{len(features)}</div>
+      <div style="font-size:14px;opacity:0.9">features planned</div>
+      <div style="margin-top:12px;font-size:13px;opacity:0.85">
+        {high} high priority · {len(features) * 4} sub-tasks total
+      </div>
+    </div>
+    {''.join(cards)}
+    """
+
+
 def send_plan_notification(features_md: str):
     subject = f"[DevAgent] 📋 Feature plan ready — {REPO_NAME}"
+    plan_html = _features_plan_html(features_md)
+    features_url = f"{GITHUB_URL}/blob/main/FEATURES.md"
     body = _base(f"""
-<h2 style="margin-top:0">📋 Your project has been planned</h2>
-<p>DevAgent has generated a feature list and will start building shortly.
-Each feature will arrive as a GitHub PR for you to review.</p>
-<pre style="background:#f6f8fa;padding:16px;border-radius:8px;font-size:12px;overflow:auto">{features_md[:3000]}</pre>
-<p><a href="{GITHUB_URL}" style="background:#0070f3;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">View on GitHub →</a></p>
+<div style="text-align:center;margin-bottom:8px">
+  <div style="display:inline-block;background:#f0f4ff;border-radius:50%;width:56px;height:56px;
+    line-height:56px;font-size:28px">📋</div>
+</div>
+<h2 style="margin:12px 0 8px;text-align:center;font-size:22px;color:#111827">
+  Your project has been planned
+</h2>
+<p style="text-align:center;color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 8px">
+  DevAgent generated your feature roadmap and will start building automatically.
+  Each completed feature arrives as a GitHub PR for your review.
+</p>
+{plan_html}
+<div style="text-align:center;margin-top:24px">
+  <a href="{features_url}" style="background:#4f46e5;color:#fff;padding:12px 28px;
+    border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;
+    display:inline-block;margin:4px">View FEATURES.md →</a>
+  <a href="{GITHUB_URL}" style="background:#f3f4f6;color:#374151;padding:12px 28px;
+    border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;
+    display:inline-block;margin:4px">Open repo →</a>
+</div>
 """)
     _send(subject, body)
 
