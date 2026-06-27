@@ -59,24 +59,54 @@ def _current_branch(repo_root: Path) -> str:
     return result.stdout.strip() or "main"
 
 
+def _is_dirty(repo_root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=repo_root, capture_output=True, text=True, env=_git_env(),
+    )
+    return bool(result.stdout.strip())
+
+
+def _stash_if_dirty(repo_root: Path) -> bool:
+    if not _is_dirty(repo_root):
+        return False
+    git(["stash", "push", "-u", "-m", "devagent-autostash"], repo_root)
+    return True
+
+
+def _stash_pop(repo_root: Path) -> None:
+    subprocess.run(
+        ["git", "stash", "pop"], cwd=repo_root, env=_git_env(), check=False,
+    )
+
+
 def _sync_with_remote(repo_root: Path, hard_reset: bool = False) -> bool:
     """Fetch and rebase current branch onto origin. Returns False on conflict."""
     branch = _current_branch(repo_root)
     git(["fetch", "origin"], repo_root)
+
+    if hard_reset:
+        git(["reset", "--hard", f"origin/{branch}"], repo_root)
+        subprocess.run(
+            ["git", "clean", "-fd"], cwd=repo_root, env=_git_env(), check=False,
+        )
+        log(f"PR: reset '{branch}' to origin/{branch}")
+        return True
+
+    if _is_dirty(repo_root):
+        # Caller has uncommitted work — do not pull/rebase over it
+        return True
+
     result = subprocess.run(
-        ["git", "pull", "--rebase", "origin", branch],
+        ["git", "rebase", f"origin/{branch}"],
         cwd=repo_root, capture_output=True, text=True, env=_git_env(),
     )
     if result.returncode == 0:
         return True
     log(f"PR: rebase failed on '{branch}' — {result.stderr.strip()[:200]}")
     subprocess.run(
-        ["git", "rebase", "--abort"], cwd=repo_root, env=_git_env(),
+        ["git", "rebase", "--abort"], cwd=repo_root, env=_git_env(), check=False,
     )
-    if hard_reset:
-        git(["reset", "--hard", f"origin/{branch}"], repo_root)
-        log(f"PR: reset '{branch}' to origin/{branch}")
-        return True
     return False
 
 
@@ -117,20 +147,25 @@ def ensure_branch(branch: str, base: str, layout: RepoLayout, target: str):
         log(f"PR: skip branch '{branch}' — no git repo at {repo_root}")
         return
 
-    result = subprocess.run(
-        ["git", "ls-remote", "--heads", "origin", branch],
-        cwd=repo_root, capture_output=True, text=True,
-    )
-    if branch in result.stdout:
-        git(["fetch", "origin", branch], repo_root)
-        git(["checkout", branch], repo_root)
-        git(["pull", "origin", branch, "--rebase"], repo_root)
-        git(["branch", "--set-upstream-to", f"origin/{branch}"], repo_root, check=False)
-        log(f"PR [{target}]: switched to '{branch}'")
-    else:
-        git(["fetch", "origin", base], repo_root)
-        git(["checkout", "-b", branch, f"origin/{base}"], repo_root)
-        log(f"PR [{target}]: created '{branch}' from '{base}'")
+    stashed = _stash_if_dirty(repo_root)
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "--heads", "origin", branch],
+            cwd=repo_root, capture_output=True, text=True,
+        )
+        if branch in result.stdout:
+            git(["fetch", "origin", branch], repo_root)
+            git(["checkout", branch], repo_root)
+            _sync_with_remote(repo_root)
+            git(["branch", "--set-upstream-to", f"origin/{branch}"], repo_root, check=False)
+            log(f"PR [{target}]: switched to '{branch}'")
+        else:
+            git(["fetch", "origin", base], repo_root)
+            git(["checkout", "-b", branch, f"origin/{base}"], repo_root)
+            log(f"PR [{target}]: created '{branch}' from '{base}'")
+    finally:
+        if stashed:
+            _stash_pop(repo_root)
 
 
 def ensure_feature_branches(branch: str, layout: RepoLayout):
@@ -175,10 +210,6 @@ def _commit_one(message: str, layout: RepoLayout, target: str) -> bool:
     git(["config", "user.email", "dev-agent@noreply.local"], repo_root)
     git(["config", "user.name", "DevAgent"], repo_root)
 
-    if not _sync_with_remote(repo_root):
-        log(f"PR [{label}]: could not sync before commit — skipping")
-        return False
-
     git(["add", "-A"], repo_root)
     result = subprocess.run(
         ["git", "diff", "--cached", "--quiet"], cwd=repo_root,
@@ -220,6 +251,51 @@ def commit_subtask(
     if not committed:
         log("PR: nothing to commit in any repo")
     return committed
+
+
+def _branch_on_remote(branch: str, repo_root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "ls-remote", "--heads", "origin", branch],
+        cwd=repo_root, capture_output=True, text=True,
+    )
+    return f"refs/heads/{branch}" in result.stdout or branch in result.stdout
+
+
+def push_feature_branch(branch: str, layout: RepoLayout, target: str) -> bool:
+    """Ensure feature branch exists locally and is pushed to origin."""
+    repo_root = layout.git_root(target)
+    if not _has_git(repo_root):
+        return False
+    ensure_branch(branch, "staging", layout, target)
+
+    if not _branch_on_remote(branch, repo_root):
+        return _push(repo_root, layout.repo_label(target))
+
+    ahead = subprocess.run(
+        ["git", "rev-list", "--count", f"origin/{branch}..HEAD"],
+        cwd=repo_root, capture_output=True, text=True, env=_git_env(),
+    )
+    if ahead.returncode != 0:
+        return _push(repo_root, layout.repo_label(target))
+    try:
+        commits_ahead = int((ahead.stdout or "0").strip())
+    except ValueError:
+        commits_ahead = 1
+
+    if commits_ahead == 0:
+        return True
+    return _push(repo_root, layout.repo_label(target))
+
+
+def push_all_feature_branches(branch: str, layout: RepoLayout) -> dict[str, bool]:
+    """Push feature branch on every active repo. Returns {target: ok}."""
+    results: dict[str, bool] = {}
+    for target in layout.active_git_targets():
+        ok = push_feature_branch(branch, layout, target)
+        results[target] = ok
+        if not ok:
+            log(f"PR [{target}]: failed to push '{branch}'")
+    return results
 
 
 # ── PR lifecycle ─────────────────────────────────────────────────────────────
@@ -275,8 +351,16 @@ def open_feature_prs(
     layout: RepoLayout,
 ) -> dict[str, dict]:
     """Open PRs on every active repo for this feature. Returns {target: {url, number}}."""
+    push_results = push_all_feature_branches(branch, layout)
     prs: dict[str, dict] = {}
     for target in layout.active_git_targets():
+        if not push_results.get(target):
+            log(f"PR [{target}]: skip open — '{branch}' not on remote")
+            continue
+        repo_root = layout.git_root(target)
+        if not _branch_on_remote(branch, repo_root):
+            log(f"PR [{target}]: skip open — '{branch}' missing on origin")
+            continue
         existing = get_open_pr(branch, layout, target)
         if existing:
             prs[target] = {
@@ -290,6 +374,8 @@ def open_feature_prs(
             prs[target] = {"url": pr["html_url"], "number": pr["number"]}
         elif url:
             prs[target] = {"url": url, "number": None}
+        else:
+            log(f"PR [{target}]: failed to open PR for '{branch}'")
     return prs
 
 

@@ -267,6 +267,27 @@ def main():
         )
 
         prs = pr_manager.open_feature_prs(feature["name"], branch, LAYOUT)
+        if not prs:
+            log(f"ERROR: No PRs opened for '{feature['name']}' — branch push or API failed")
+            feature["status"] = "in_progress"
+            feature["note"] = "PR creation failed — will retry on next run"
+            save_features(features, FEATURES_FILE)
+            pr_manager.commit_control(
+                f"chore: PR open failed for {feature['name']} [DevAgent]", LAYOUT
+            )
+            emailer.send_blocked_notification(
+                feature["name"],
+                "Open PR",
+                "Branch not pushed or GitHub API rejected PR creation (422 head invalid)",
+            )
+            write_progress({
+                "state":           "idle",
+                "current_feature": feature["name"],
+                "branch":          branch,
+                "last_action":     f"PR open failed for {feature['name']}",
+            })
+            return
+
         pr_urls    = {k: v["url"] for k, v in prs.items()}
         pr_numbers = {k: v["number"] for k, v in prs.items() if v.get("number")}
 
