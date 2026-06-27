@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 HF_API_KEY  = os.environ.get("HF_API_KEY", "")
 HF_MODEL    = os.environ.get("HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.3")
-HF_API_BASE = "https://api-inference.huggingface.co/models"
+HF_API_URL  = "https://router.huggingface.co/v1/chat/completions"
 
 
 def log(msg: str):
@@ -19,27 +19,26 @@ def log(msg: str):
 # ── HuggingFace API ────────────────────────────────────────────────────────────
 
 def call_hf(prompt: str, max_tokens: int = 2000, retries: int = 3) -> str:
-    """Call HuggingFace Inference API. Returns text or empty string on failure."""
+    """Call HuggingFace Inference Providers (router API). Returns text or empty string."""
     if not HF_API_KEY:
         log("WARNING: HF_API_KEY not set — model calls will fail")
         return ""
 
-    url = f"{HF_API_BASE}/{HF_MODEL}"
-    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+    headers = {
+        "Authorization": f"Bearer {HF_API_KEY}",
+        "Content-Type":  "application/json",
+    }
     payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": max_tokens,
-            "temperature": 0.2,
-            "do_sample": True,
-            "return_full_text": False,
-        },
-        "options": {"wait_for_model": True},
+        "model": HF_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": max_tokens,
+        "temperature": 0.2,
+        "stream": False,
     }
 
     for attempt in range(1, retries + 1):
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=120)
+            resp = requests.post(HF_API_URL, headers=headers, json=payload, timeout=120)
             if resp.status_code == 503:
                 log(f"HF: model loading (503). Waiting 20s... (attempt {attempt})")
                 time.sleep(20)
@@ -48,12 +47,19 @@ def call_hf(prompt: str, max_tokens: int = 2000, retries: int = 3) -> str:
                 log(f"HF: rate limited (429). Waiting 60s... (attempt {attempt})")
                 time.sleep(60)
                 continue
+            if resp.status_code in (401, 403):
+                log(f"HF: auth error ({resp.status_code}) — check HF_API_KEY has Inference Providers permission")
+                log(f"HF: {resp.text[:300]}")
+                return ""
             resp.raise_for_status()
             data = resp.json()
-            if isinstance(data, list) and data:
-                return data[0].get("generated_text", "")
-            if isinstance(data, dict):
-                return data.get("generated_text", "")
+            choices = data.get("choices") or []
+            if choices:
+                content = choices[0].get("message", {}).get("content", "")
+                if content:
+                    return content.strip()
+            if data.get("error"):
+                log(f"HF: API error — {data['error']}")
             return ""
         except requests.RequestException as e:
             log(f"HF: request error on attempt {attempt}: {e}")
