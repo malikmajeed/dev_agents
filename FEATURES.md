@@ -1,7 +1,7 @@
 # FEATURES
 
 ## User authentication
-**Status:** in_progress 🔄  
+**Status:** done ✅  
 **Priority:** high  
 **Note:** Sub-task blocked: Wiring: AuthContext.jsx stores token in memory, axios interceptor attaches Bearer token to all requests  
 **Sub-tasks:**
