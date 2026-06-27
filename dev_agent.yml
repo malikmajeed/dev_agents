@@ -1,0 +1,117 @@
+name: DevAgent — Self-Healing Developer
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+
+  workflow_dispatch:
+    inputs:
+      force_feature:
+        description: "Force a specific feature (leave blank for auto)"
+        required: false
+        default: ""
+      skip_approval_wait:
+        description: "Skip approval wait this run? (true/false)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: write
+  pull-requests: write
+  secrets: write
+
+jobs:
+  dev-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      # ── Checkout control repo (dev_agent + PROJECT.md + FEATURES.md) ─────────
+      - name: Checkout control repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Checkout backend repo (dual-repo mode) ───────────────────────────────
+      - name: Checkout backend repo
+        if: vars.BACKEND_REPOSITORY != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.BACKEND_REPOSITORY }}
+          path: backend
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Checkout frontend repo (dual-repo mode) ──────────────────────────────
+      - name: Checkout frontend repo
+        if: vars.FRONTEND_REPOSITORY != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.FRONTEND_REPOSITORY }}
+          path: frontend
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name  "DevAgent"
+          git config user.email "dev-agent@noreply.local"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: pip install requests pynacl
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install backend deps (if package.json exists)
+        run: |
+          if [ -f backend/package.json ]; then
+            cd backend
+            npm ci --prefer-offline 2>/dev/null || npm install
+          fi
+
+      - name: Run DevAgent orchestrator
+        env:
+          HF_API_KEY:           ${{ secrets.HF_API_KEY }}
+          HF_MODEL:             ${{ vars.HF_MODEL || 'mistralai/Mistral-7B-Instruct-v0.3' }}
+
+          GMAIL_USER:           ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASS:       ${{ secrets.GMAIL_APP_PASS }}
+          NOTIFY_EMAIL:         ${{ vars.NOTIFY_EMAIL || secrets.GMAIL_USER }}
+
+          APPROVAL_WAIT_HOURS:  ${{ vars.APPROVAL_WAIT_HOURS || '999' }}
+          MAX_HEAL_RETRIES:     ${{ vars.MAX_HEAL_RETRIES || '3' }}
+          FORCE_FEATURE:        ${{ github.event.inputs.force_feature }}
+
+          GITHUB_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY:    ${{ github.repository }}
+
+          # Dual-repo: set as GitHub Actions variables (see REPOS.md)
+          BACKEND_REPOSITORY:   ${{ vars.BACKEND_REPOSITORY }}
+          FRONTEND_REPOSITORY:  ${{ vars.FRONTEND_REPOSITORY }}
+
+          REPO_ROOT:            ${{ github.workspace }}
+        run: |
+          cd dev_agent
+          python orchestrator.py
+
+      - name: Upload run logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: devagent-run-${{ github.run_number }}
+          path: |
+            PROGRESS.md
+            FEATURES.md
+            TECHSTACK.md
+            ENV_REGISTRY.md
+            REPOS.md
+          retention-days: 14
