@@ -8,6 +8,8 @@ A mid-level donation management system for an NGO that:
 - Provides an admin dashboard for NGO staff to oversee all activity
 - Sends automated receipt emails to donors after each donation
 - Has a public-facing donation page so anyone can donate to a cause
+- a feature to add students with their necessary details such as name age class profile and stuff. and they'll appear to donor in a seaprate page. 
+
 
 ## Scale
 - Mid-level: not enterprise (no microservices, no event queues, no payment gateway)
