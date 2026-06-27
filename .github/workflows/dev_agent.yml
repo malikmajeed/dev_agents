@@ -41,6 +41,61 @@ jobs:
           echo "backend=$(normalize '${{ vars.BACKEND_REPOSITORY }}')" >> "$GITHUB_OUTPUT"
           echo "frontend=$(normalize '${{ vars.FRONTEND_REPOSITORY }}')" >> "$GITHUB_OUTPUT"
 
+      # ── Initialize empty backend/frontend repos (checkout fails with no commits) ─
+      - name: Ensure backend repo initialized
+        if: steps.repos.outputs.backend != ''
+        env:
+          GH_TOKEN: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          REPO: ${{ steps.repos.outputs.backend }}
+        run: |
+          set -e
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/commits/main")
+          if [ "$code" = "200" ]; then
+            echo "Backend ${REPO} already has main branch"
+            exit 0
+          fi
+          echo "::notice::Initializing empty backend repo ${REPO}"
+          work=$(mktemp -d)
+          cd "$work"
+          git init -b main
+          git config user.name "DevAgent"
+          git config user.email "dev-agent@noreply.local"
+          echo "# ${REPO##*/}" > README.md
+          git add README.md
+          git commit -m "chore: initial commit [DevAgent]"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          git push -u origin main
+
+      - name: Ensure frontend repo initialized
+        if: steps.repos.outputs.frontend != ''
+        env:
+          GH_TOKEN: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          REPO: ${{ steps.repos.outputs.frontend }}
+        run: |
+          set -e
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/commits/main")
+          if [ "$code" = "200" ]; then
+            echo "Frontend ${REPO} already has main branch"
+            exit 0
+          fi
+          echo "::notice::Initializing empty frontend repo ${REPO}"
+          work=$(mktemp -d)
+          cd "$work"
+          git init -b main
+          git config user.name "DevAgent"
+          git config user.email "dev-agent@noreply.local"
+          echo "# ${REPO##*/}" > README.md
+          git add README.md
+          git commit -m "chore: initial commit [DevAgent]"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          git push -u origin main
+
       # ── Checkout control repo (dev_agent + PROJECT.md + FEATURES.md) ─────────
       - name: Checkout control repo
         uses: actions/checkout@v4
@@ -54,6 +109,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ steps.repos.outputs.backend }}
+          ref: main
           path: backend
           fetch-depth: 0
           token: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
@@ -64,6 +120,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ steps.repos.outputs.frontend }}
+          ref: main
           path: frontend
           fetch-depth: 0
           token: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}

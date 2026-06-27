@@ -59,6 +59,10 @@ The workflow falls back to the automatic `GITHUB_TOKEN` if `DEVAGENT_GITHUB_TOKE
 
 Also enable **Workflow permissions → Read and write** on the control repo.
 
+### Empty backend / frontend repos
+
+If `dms-backend` or `dms-frontend` were created on GitHub with **no README / no first commit**, checkout fails at *"Checking out the ref"*. The workflow now auto-pushes an initial `main` commit when needed. Your PAT must have **`repo`** write access.
+
 ## `.gitignore` (control repo)
 
 When using dual-repo mode, ignore the nested checkouts in the control repo:
