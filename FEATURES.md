@@ -1,10 +1,11 @@
 # FEATURES
 
 ## User authentication
-**Status:** pending  
+**Status:** in_progress 🔄  
 **Priority:** high  
+**Note:** Sub-task blocked: Backend: User model (models/User.js) with email, password, role fields. bcrypt hashing on save.  
 **Sub-tasks:**
-- [ ] Backend: User model (models/User.js) with email, password, role fields. bcrypt hashing on save.
+- [~] Backend: User model (models/User.js) with email, password, role fields. bcrypt hashing on save.
 - [ ] API: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me — JWT issued on login
 - [ ] Frontend: LoginPage.jsx, RegisterPage.jsx, ProtectedRoute.jsx wrapper component
 - [ ] Wiring: AuthContext.jsx stores token in memory, axios interceptor attaches Bearer token to all requests
@@ -12,7 +13,7 @@
 ---
 
 ## Donor management
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** high  
 **Sub-tasks:**
 - [ ] Backend: Donor model (models/Donor.js) — name, email, phone, address, createdAt, totalDonated
@@ -23,7 +24,7 @@
 ---
 
 ## Cause and campaign management
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** high  
 **Sub-tasks:**
 - [ ] Backend: Cause model (models/Cause.js) — title, description, goalAmount, raisedAmount, isActive, imageUrl
@@ -34,7 +35,7 @@
 ---
 
 ## Donation recording
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** high  
 **Sub-tasks:**
 - [ ] Backend: Donation model (models/Donation.js) — donor ref, cause ref, amount, type (one-time/recurring), date, note
@@ -45,7 +46,7 @@
 ---
 
 ## Student beneficiary profiles
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** high  
 **Sub-tasks:**
 - [ ] Backend: Student model (models/Student.js) — name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt
@@ -56,7 +57,7 @@
 ---
 
 ## Donation receipt emails
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** medium  
 **Sub-tasks:**
 - [ ] Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)
@@ -67,7 +68,7 @@
 ---
 
 ## Admin dashboard
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** medium  
 **Sub-tasks:**
 - [ ] Backend: controllers/dashboard.js — aggregate queries: total raised, donor count, active causes, recent donations
@@ -78,7 +79,7 @@
 ---
 
 ## Report export
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** low  
 **Sub-tasks:**
 - [ ] Backend: controllers/reports.js — query donations by date range + cause, format as CSV using json2csv
@@ -89,7 +90,7 @@
 ---
 
 ## Public donation page
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** medium  
 **Sub-tasks:**
 - [ ] Backend: GET /api/public/causes (no auth), POST /api/public/donate (creates donor if not exists + donation)
@@ -100,7 +101,7 @@
 ---
 
 ## Role-based access control
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** medium  
 **Sub-tasks:**
 - [ ] Backend: middleware/authorize.js — checks req.user.role against allowed roles array
