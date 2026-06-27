@@ -1,7 +1,7 @@
 # FEATURES
 
 ## User authentication
-**Status:** in_progress 🔄  
+**Status:** pending ⏳  
 **Priority:** high  
 **Note:** Sub-task blocked: API: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me — JWT issued on login  
 **Sub-tasks:**
