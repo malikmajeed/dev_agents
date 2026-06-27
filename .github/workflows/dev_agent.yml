@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       # ── Checkout backend repo (dual-repo mode) ───────────────────────────────
       - name: Checkout backend repo
@@ -41,7 +41,7 @@ jobs:
           repository: ${{ vars.BACKEND_REPOSITORY }}
           path: backend
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       # ── Checkout frontend repo (dual-repo mode) ──────────────────────────────
       - name: Checkout frontend repo
@@ -51,7 +51,7 @@ jobs:
           repository: ${{ vars.FRONTEND_REPOSITORY }}
           path: frontend
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Configure git
         run: |
@@ -91,7 +91,7 @@ jobs:
           MAX_HEAL_RETRIES:     ${{ vars.MAX_HEAL_RETRIES || '3' }}
           FORCE_FEATURE:        ${{ github.event.inputs.force_feature }}
 
-          GITHUB_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN:         ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY:    ${{ github.repository }}
 
           # Dual-repo: set as GitHub Actions variables (see REPOS.md)

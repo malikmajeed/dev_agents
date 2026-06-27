@@ -32,7 +32,25 @@ Leave `BACKEND_REPOSITORY` and `FRONTEND_REPOSITORY` **empty**. DevAgent commits
 
 ## Permissions
 
-The `GITHUB_TOKEN` must be able to push and open PRs on all three repos. For org repos, enable **Workflow permissions → Read and write** and allow access to organization repositories.
+The workflow uses **`DEVAGENT_GITHUB_TOKEN`** (a Personal Access Token) to access private repos.
+
+### Create the PAT
+
+1. GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
+2. Generate token with **`repo`** scope (required for private repositories)
+3. Copy the token
+
+### Add as secret (control repo)
+
+`malikmajeed/dev_agents` → **Settings** → **Secrets and variables** → **Actions** → **New secret**
+
+| Secret name | Value |
+|-------------|--------|
+| `DEVAGENT_GITHUB_TOKEN` | Your PAT (`ghp_...`) |
+
+The workflow falls back to the automatic `GITHUB_TOKEN` if `DEVAGENT_GITHUB_TOKEN` is not set (mono-repo / public only).
+
+Also enable **Workflow permissions → Read and write** on the control repo.
 
 ## `.gitignore` (control repo)
 
