@@ -13,7 +13,7 @@
 ---
 
 ## Donor management
-**Status:** in_progress 🔄  
+**Status:** done ✅  
 **Priority:** high  
 **Sub-tasks:**
 - [x] Backend: Donor model (models/Donor.js) — name, email, phone, address, createdAt, totalDonated
