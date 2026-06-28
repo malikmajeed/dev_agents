@@ -29,7 +29,7 @@
 **Sub-tasks:**
 - [x] Backend: Cause model (models/Cause.js) — title, description, goalAmount, raisedAmount, isActive, imageUrl
 - [x] API: GET/POST /api/causes, GET/PUT/DELETE /api/causes/:id, PATCH /api/causes/:id/toggle
-- [ ] Frontend: CausesPage.jsx (card grid), CauseForm.jsx (create/edit), CauseCard.jsx (public-facing)
+- [x] Frontend: CausesPage.jsx (card grid), CauseForm.jsx (create/edit), CauseCard.jsx (public-facing)
 - [ ] Wiring: services/causes.js, update raisedAmount via donation controller hook
 
 ---
