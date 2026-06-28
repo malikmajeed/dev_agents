@@ -24,7 +24,7 @@
 ---
 
 ## Cause and campaign management
-**Status:** in_progress 🔄  
+**Status:** done ✅  
 **Priority:** high  
 **Sub-tasks:**
 - [x] Backend: Cause model (models/Cause.js) — title, description, goalAmount, raisedAmount, isActive, imageUrl
