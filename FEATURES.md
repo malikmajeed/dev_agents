@@ -17,7 +17,7 @@
 **Priority:** high  
 **Sub-tasks:**
 - [x] Backend: Donor model (models/Donor.js) — name, email, phone, address, createdAt, totalDonated
-- [ ] API: GET/POST /api/donors, GET/PUT/DELETE /api/donors/:id — auth required
+- [x] API: GET/POST /api/donors, GET/PUT/DELETE /api/donors/:id — auth required
 - [ ] Frontend: DonorsPage.jsx (table list), DonorForm.jsx (add/edit modal), DonorCard.jsx
 - [ ] Wiring: services/donors.js axios wrappers, useDonors custom hook for data fetching
 
