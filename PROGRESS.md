@@ -1,21 +1,21 @@
 # Agent Progress
 
-_Last updated: 2026-06-29T00:15:00.950650+00:00_
+_Last updated: 2026-06-29T05:57:05.472712+00:00_
 
 **State:** 🔨 `working`  
 **Feature:** Donation recording  
-**Sub-task:** Backend: Donation model (models/Donation.js) — donor ref, cause ref, amount, type (one-time/recurring), date, note  
+**Sub-task:** API: GET /api/donations (filterable by donor, cause, date), POST /api/donations  
 **Branch:** feat/donation-recording  
 **PR:** —  
 **Repos:** dual (backend + frontend)  
-**Last action:** Started sub-task: Backend: Donation model (models/Donation.js) — donor ref, cause ref, amount, type (one-time/recurring), date, note
+**Last action:** Started sub-task: API: GET /api/donations (filterable by donor, cause, date), POST /api/donations
 
 ```json
 {
   "state": "working",
   "current_feature": "Donation recording",
-  "current_subtask": "Backend: Donation model (models/Donation.js) \u2014 donor ref, cause ref, amount, type (one-time/recurring), date, note",
+  "current_subtask": "API: GET /api/donations (filterable by donor, cause, date), POST /api/donations",
   "branch": "feat/donation-recording",
-  "last_action": "Started sub-task: Backend: Donation model (models/Donation.js) \u2014 donor ref, cause ref, amount, type (one-time/recurring), date, note"
+  "last_action": "Started sub-task: API: GET /api/donations (filterable by donor, cause, date), POST /api/donations"
 }
 ```

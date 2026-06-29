@@ -39,7 +39,7 @@
 **Priority:** high  
 **Sub-tasks:**
 - [x] Backend: Donation model (models/Donation.js) — donor ref, cause ref, amount, type (one-time/recurring), date, note
-- [ ] API: GET /api/donations (filterable by donor, cause, date), POST /api/donations
+- [x] API: GET /api/donations (filterable by donor, cause, date), POST /api/donations
 - [ ] Frontend: DonationForm.jsx (amount, cause selector, donor lookup), DonationsPage.jsx (table with filters)
 - [ ] Wiring: On POST /api/donations — increment Cause.raisedAmount, increment Donor.totalDonated, trigger receipt email
 
