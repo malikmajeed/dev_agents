@@ -1,21 +1,21 @@
 # Agent Progress
 
-_Last updated: 2026-06-29T20:52:14.827232+00:00_
+_Last updated: 2026-06-29T22:14:48.710975+00:00_
 
 **State:** 🔨 `working`  
 **Feature:** Student beneficiary profiles  
-**Sub-task:** Backend: Student model (models/Student.js) — name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt  
+**Sub-task:** API: GET/POST /api/students, GET/PUT/DELETE /api/students/:id  
 **Branch:** feat/student-beneficiary-profiles  
 **PR:** —  
 **Repos:** dual (backend + frontend)  
-**Last action:** Started sub-task: Backend: Student model (models/Student.js) — name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt
+**Last action:** Started sub-task: API: GET/POST /api/students, GET/PUT/DELETE /api/students/:id
 
 ```json
 {
   "state": "working",
   "current_feature": "Student beneficiary profiles",
-  "current_subtask": "Backend: Student model (models/Student.js) \u2014 name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt",
+  "current_subtask": "API: GET/POST /api/students, GET/PUT/DELETE /api/students/:id",
   "branch": "feat/student-beneficiary-profiles",
-  "last_action": "Started sub-task: Backend: Student model (models/Student.js) \u2014 name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt"
+  "last_action": "Started sub-task: API: GET/POST /api/students, GET/PUT/DELETE /api/students/:id"
 }
 ```
