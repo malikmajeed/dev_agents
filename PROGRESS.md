@@ -1,21 +1,21 @@
 # Agent Progress
 
-_Last updated: 2026-06-28T20:18:16.029675+00:00_
+_Last updated: 2026-06-29T00:15:00.950650+00:00_
 
 **State:** 🔨 `working`  
-**Feature:** Cause and campaign management  
-**Sub-task:** Wiring: services/causes.js, update raisedAmount via donation controller hook  
-**Branch:** feat/cause-and-campaign-management  
+**Feature:** Donation recording  
+**Sub-task:** Backend: Donation model (models/Donation.js) — donor ref, cause ref, amount, type (one-time/recurring), date, note  
+**Branch:** feat/donation-recording  
 **PR:** —  
 **Repos:** dual (backend + frontend)  
-**Last action:** Started sub-task: Wiring: services/causes.js, update raisedAmount via donation controller hook
+**Last action:** Started sub-task: Backend: Donation model (models/Donation.js) — donor ref, cause ref, amount, type (one-time/recurring), date, note
 
 ```json
 {
   "state": "working",
-  "current_feature": "Cause and campaign management",
-  "current_subtask": "Wiring: services/causes.js, update raisedAmount via donation controller hook",
-  "branch": "feat/cause-and-campaign-management",
-  "last_action": "Started sub-task: Wiring: services/causes.js, update raisedAmount via donation controller hook"
+  "current_feature": "Donation recording",
+  "current_subtask": "Backend: Donation model (models/Donation.js) \u2014 donor ref, cause ref, amount, type (one-time/recurring), date, note",
+  "branch": "feat/donation-recording",
+  "last_action": "Started sub-task: Backend: Donation model (models/Donation.js) \u2014 donor ref, cause ref, amount, type (one-time/recurring), date, note"
 }
 ```
