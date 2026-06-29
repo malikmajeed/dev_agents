@@ -46,10 +46,10 @@
 ---
 
 ## Student beneficiary profiles
-**Status:** pending ⏳  
+**Status:** in_progress 🔄  
 **Priority:** high  
 **Sub-tasks:**
-- [ ] Backend: Student model (models/Student.js) — name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt
+- [x] Backend: Student model (models/Student.js) — name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt
 - [ ] API: GET/POST /api/students, GET/PUT/DELETE /api/students/:id
 - [ ] Frontend: StudentsPage.jsx (searchable list), StudentForm.jsx, StudentProfile.jsx (shows sponsor + cause)
 - [ ] Wiring: services/students.js, StudentProfile links to donor profile and cause detail
