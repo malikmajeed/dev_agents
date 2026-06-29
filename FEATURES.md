@@ -35,7 +35,7 @@
 ---
 
 ## Donation recording
-**Status:** in_progress 🔄  
+**Status:** done ✅  
 **Priority:** high  
 **Sub-tasks:**
 - [x] Backend: Donation model (models/Donation.js) — donor ref, cause ref, amount, type (one-time/recurring), date, note
