@@ -52,7 +52,7 @@
 - [x] Backend: Student model (models/Student.js) — name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt
 - [x] API: GET/POST /api/students, GET/PUT/DELETE /api/students/:id
 - [x] Frontend: StudentsPage.jsx (searchable list), StudentForm.jsx, StudentProfile.jsx (shows sponsor + cause)
-- [ ] Wiring: services/students.js, StudentProfile links to donor profile and cause detail
+- [x] Wiring: services/students.js, StudentProfile links to donor profile and cause detail
 
 ---
 
