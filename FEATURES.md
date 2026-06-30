@@ -46,7 +46,7 @@
 ---
 
 ## Student beneficiary profiles
-**Status:** in_progress 🔄  
+**Status:** done ✅  
 **Priority:** high  
 **Sub-tasks:**
 - [x] Backend: Student model (models/Student.js) — name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt
