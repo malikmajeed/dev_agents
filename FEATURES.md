@@ -57,10 +57,10 @@
 ---
 
 ## Donation receipt emails
-**Status:** pending ⏳  
+**Status:** in_progress 🔄  
 **Priority:** medium  
 **Sub-tasks:**
-- [ ] Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)
+- [p] Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)
 - [ ] API: Internal sendReceipt(donationId) called from donation controller — not a public endpoint
 - [ ] Frontend: ReceiptPreview.jsx shown in donor profile history (renders same HTML template)
 - [ ] Wiring: POST /api/donations controller calls sendReceipt after saving — async, non-blocking

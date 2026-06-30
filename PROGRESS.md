@@ -1,21 +1,21 @@
 # Agent Progress
 
-_Last updated: 2026-06-30T05:11:09.065529+00:00_
+_Last updated: 2026-06-30T12:16:36.814827+00:00_
 
 **State:** 🔨 `working`  
-**Feature:** Student beneficiary profiles  
-**Sub-task:** Wiring: services/students.js, StudentProfile links to donor profile and cause detail  
-**Branch:** feat/student-beneficiary-profiles  
+**Feature:** Donation receipt emails  
+**Sub-task:** Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)  
+**Branch:** feat/donation-receipt-emails  
 **PR:** —  
 **Repos:** dual (backend + frontend)  
-**Last action:** Started sub-task: Wiring: services/students.js, StudentProfile links to donor profile and cause detail
+**Last action:** Started sub-task: Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)
 
 ```json
 {
   "state": "working",
-  "current_feature": "Student beneficiary profiles",
-  "current_subtask": "Wiring: services/students.js, StudentProfile links to donor profile and cause detail",
-  "branch": "feat/student-beneficiary-profiles",
-  "last_action": "Started sub-task: Wiring: services/students.js, StudentProfile links to donor profile and cause detail"
+  "current_feature": "Donation receipt emails",
+  "current_subtask": "Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)",
+  "branch": "feat/donation-receipt-emails",
+  "last_action": "Started sub-task: Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)"
 }
 ```
