@@ -1,33 +1,30 @@
 """
-Orchestrator v2 — sub-task level commits, PR flow, TECHSTACK.md awareness.
+Orchestrator — Next.js mono-repo, one sub-task per run, auto-merge to main.
 
 Each run does exactly ONE thing:
   - One sub-task generated → one commit → push to feature branch
-  - When all sub-tasks of a feature are done → open PR to staging → email you
-  - You reply OK (or wait) → agent merges PR → moves to next feature
-  - When ALL features done → open PR staging → main
+  - When all sub-tasks of a feature are done → open PR → auto-merge to main
+  - When ALL features done → send completion email
 """
 
 import os, sys, json, re
 from pathlib import Path
 from datetime import datetime, timezone
 
-import planner, coder, healer, emailer, pr_manager, env_manager
+import coder, healer, emailer, pr_manager, env_manager, bootstrap, planner
 from repo_config import RepoLayout
 from utils import (
     log, read_techstack, save_features, parse_features,
     get_next_subtask, mark_subtask, update_techstack,
 )
 
-REPO_ROOT    = Path(os.environ.get("REPO_ROOT", Path(__file__).parent.parent))
-LAYOUT       = RepoLayout.load(REPO_ROOT)
+REPO_ROOT     = Path(os.environ.get("REPO_ROOT", Path(__file__).parent.parent))
+LAYOUT        = RepoLayout.load(REPO_ROOT)
 FEATURES_FILE = REPO_ROOT / "FEATURES.md"
 PROGRESS_FILE = REPO_ROOT / "PROGRESS.md"
 PROJECT_FILE  = REPO_ROOT / "PROJECT.md"
-TECHSTACK_FILE = REPO_ROOT / "TECHSTACK.md"
 
-APPROVAL_WAIT_HOURS = float(os.environ.get("APPROVAL_WAIT_HOURS", "999"))
-MAX_HEAL_RETRIES    = int(os.environ.get("MAX_HEAL_RETRIES", "3"))
+MAX_HEAL_RETRIES = int(os.environ.get("MAX_HEAL_RETRIES", "3"))
 
 
 # ── Progress state ─────────────────────────────────────────────────────────────
@@ -51,19 +48,11 @@ def _pr_display(data: dict) -> str:
     return data.get("pr_url") or "—"
 
 
-def _normalize_pr_numbers(progress: dict) -> dict[str, int]:
-    """Support legacy single pr_number and new pr_numbers dict."""
-    nums = progress.get("pr_numbers") or {}
-    if not nums and progress.get("pr_number"):
-        nums = {"control": progress["pr_number"]}
-    return {k: v for k, v in nums.items() if v}
-
-
 def write_progress(data: dict):
     now = datetime.now(timezone.utc).isoformat()
     state_icons = {
-        "idle": "💤", "working": "🔨", "awaiting_approval": "⏳",
-        "awaiting_env": "🔑", "complete": "🎉", "planned": "📋",
+        "idle": "💤", "working": "🔨", "awaiting_env": "🔑",
+        "complete": "🎉", "planned": "📋",
     }
     icon = state_icons.get(data.get("state", "idle"), "❓")
     md = f"""# Agent Progress
@@ -75,7 +64,7 @@ _Last updated: {now}_
 **Sub-task:** {data.get('current_subtask') or '—'}  
 **Branch:** {data.get('branch') or '—'}  
 **PR:** {_pr_display(data)}  
-**Repos:** {'dual (backend + frontend)' if LAYOUT.dual_repo else 'mono'}  
+**Layout:** Next.js mono-repo  
 **Last action:** {data.get('last_action') or '—'}
 
 ```json
@@ -85,92 +74,38 @@ _Last updated: {now}_
     PROGRESS_FILE.write_text(md)
 
 
-def hours_since(iso_str: str) -> float:
-    if not iso_str:
-        return 999
-    dt = datetime.fromisoformat(iso_str)
-    now = datetime.now(timezone.utc)
-    return (now - dt).total_seconds() / 3600
-
-
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
     global LAYOUT
     LAYOUT = RepoLayout.load(REPO_ROOT)
-    log("=== DevAgent v2 orchestrator starting ===")
+    log("=== DevAgent orchestrator starting (Next.js mono-repo) ===")
 
-    # Sync all repos before any work — avoids non-fast-forward push failures
     pr_manager.sync_repo(REPO_ROOT)
-    if LAYOUT.dual_repo:
-        pr_manager.sync_repo(LAYOUT.backend_root)
-        pr_manager.sync_repo(LAYOUT.frontend_root)
 
-    # ── 0. First run: generate FEATURES.md ────────────────────────────────────
+    # ── First run: generate FEATURES.md from PROJECT.md ────────────────────────
     if not FEATURES_FILE.exists():
         if not PROJECT_FILE.exists():
-            log("ERROR: PROJECT.md missing. Cannot plan.")
+            log("ERROR: PROJECT.md missing. Cannot plan features.")
             sys.exit(1)
-        log("No FEATURES.md — running planner...")
+        log("No FEATURES.md — running planner from PROJECT.md...")
         project_desc = PROJECT_FILE.read_text()
         techstack    = read_techstack(REPO_ROOT)
         planner.generate_features(project_desc, techstack, FEATURES_FILE)
-
-        pr_manager.ensure_all_staging(LAYOUT)
-        pr_manager.commit_control("chore: initial feature plan [DevAgent]", LAYOUT)
-        write_progress({"state": "planned", "last_action": "Generated FEATURES.md"})
+        bootstrap.ensure_scaffold(REPO_ROOT)
+        pr_manager.commit_control("chore: initial feature plan + scaffold [DevAgent]", LAYOUT)
+        write_progress({"state": "planned", "last_action": "Generated FEATURES.md from PROJECT.md"})
         emailer.send_plan_notification(FEATURES_FILE.read_text())
         return
 
-    # ── 1. Read state ──────────────────────────────────────────────────────────
+    if bootstrap.ensure_scaffold(REPO_ROOT):
+        pr_manager.commit_control("chore: bootstrap Next.js scaffold [DevAgent]", LAYOUT)
+
     progress = read_progress()
     state    = progress.get("state", "idle")
     log(f"State: {state}")
 
-    # ── 2. Awaiting approval after a completed feature ─────────────────────────
-    if state == "awaiting_approval":
-        feature_name = progress.get("current_feature")
-        pr_numbers   = _normalize_pr_numbers(progress)
-        waiting_since = progress.get("waiting_since")
-
-        reply = emailer.check_for_reply(feature_name)
-
-        approved = (
-            reply is True or
-            (reply is None and hours_since(waiting_since) >= APPROVAL_WAIT_HOURS)
-        )
-        rejected = reply is False
-
-        if approved:
-            action = "Approval received" if reply is True else f"Auto-approved after {APPROVAL_WAIT_HOURS:.0f}h"
-            log(f"{action} — merging PR(s) {pr_numbers}")
-            pr_manager.merge_feature_prs(pr_numbers, feature_name, LAYOUT)
-            progress["state"] = "idle"
-            progress["waiting_since"] = None
-            progress["pr_numbers"] = None
-            progress["pr_urls"] = None
-
-        elif rejected:
-            log("Rejected — marking feature needs_revision")
-            features = parse_features(FEATURES_FILE)
-            for f in features:
-                if f["name"] == feature_name:
-                    f["status"] = "needs_revision"
-                    f["note"]   = "Rejected by reviewer — awaiting manual fix"
-            save_features(features, FEATURES_FILE)
-            pr_manager.commit_control(
-                f"chore: mark {feature_name} needs_revision [DevAgent]", LAYOUT
-            )
-            progress["state"] = "idle"
-
-        else:
-            waited = hours_since(waiting_since)
-            log(f"Still waiting for approval ({waited:.1f}h / {APPROVAL_WAIT_HOURS:.0f}h). Exiting.")
-            return
-
-        write_progress(progress)
-
-    # ── 2b. Awaiting env vars for current sub-task ─────────────────────────────
+    # ── Awaiting env vars for current sub-task ─────────────────────────────────
     if state == "awaiting_env":
         feature_name = progress.get("current_feature")
         subtask_text = progress.get("current_subtask")
@@ -195,11 +130,9 @@ def main():
                 REPO_ROOT, [e["key"] for e in pending_env]
             )
         elif not ready:
-            waited = hours_since(progress.get("waiting_since"))
-            log(f"Still waiting for env vars ({waited:.1f}h). Reply to the 🔑 email.")
+            log("Still waiting for env vars. Reply to the env email or add GitHub Secrets.")
             return
         else:
-            # Satisfied via email values or manual GitHub Secrets — mark configured
             env_manager.mark_configured(
                 REPO_ROOT, [e["key"] for e in pending_env]
             )
@@ -226,21 +159,18 @@ def main():
         )
         return
 
-    # ── 3. Pick next feature ───────────────────────────────────────────────────
+    # ── Pick next feature ──────────────────────────────────────────────────────
     features = parse_features(FEATURES_FILE)
     pending  = [f for f in features if f["status"] in ("pending", "needs_revision", "in_progress")]
 
     if not pending:
-        all_done = all(f["status"] in ("done",) for f in features)
-        if all_done:
-            log("🎉 All features done! Opening staging → main PR(s).")
-            done_count = len(features)
-            release_prs = pr_manager.open_release_prs(done_count, done_count, LAYOUT)
-            emailer.send_completion_email(pr_urls=release_prs)
+        all_done = all(f["status"] == "done" for f in features)
+        if all_done and state != "complete":
+            log("All features done!")
+            emailer.send_completion_email()
             write_progress({
                 "state": "complete",
                 "last_action": "All features done",
-                "pr_urls": release_prs,
             })
         else:
             log("No pending features (some blocked). Exiting.")
@@ -249,60 +179,52 @@ def main():
     feature = pending[0]
     log(f"Feature: '{feature['name']}' (status: {feature['status']})")
 
-    # ── 4. Ensure feature branch ───────────────────────────────────────────────
     slug   = pr_manager.slugify(feature["name"])
     branch = f"feat/{slug}"
-    pr_manager.ensure_feature_branches(branch, LAYOUT)
+    pr_manager.ensure_feature_branch(branch, LAYOUT)
 
-    # ── 5. Pick next sub-task ──────────────────────────────────────────────────
     subtask = get_next_subtask(feature)
 
     if not subtask:
-        # All sub-tasks done — open PR if not already open
         feature["status"] = "done"
         save_features(features, FEATURES_FILE)
-
         pr_manager.commit_control(
             f"chore: mark {feature['name']} complete [DevAgent]", LAYOUT
         )
 
-        prs = pr_manager.open_feature_prs(feature["name"], branch, LAYOUT)
-        if not prs:
-            log(f"ERROR: No PRs opened for '{feature['name']}' — branch push or API failed")
+        result = pr_manager.auto_merge_feature_pr(feature["name"], branch, LAYOUT)
+        if not result:
+            log(f"ERROR: Auto-merge failed for '{feature['name']}'")
             feature["status"] = "in_progress"
-            feature["note"] = "PR creation failed — will retry on next run"
+            feature["note"] = "PR merge failed — will retry on next run"
             save_features(features, FEATURES_FILE)
             pr_manager.commit_control(
-                f"chore: PR open failed for {feature['name']} [DevAgent]", LAYOUT
+                f"chore: merge failed for {feature['name']} [DevAgent]", LAYOUT
             )
             emailer.send_blocked_notification(
                 feature["name"],
-                "Open PR",
-                "Branch not pushed or GitHub API rejected PR creation (422 head invalid)",
+                "Auto-merge PR",
+                "Branch push or GitHub PR merge failed",
             )
             write_progress({
                 "state":           "idle",
                 "current_feature": feature["name"],
                 "branch":          branch,
-                "last_action":     f"PR open failed for {feature['name']}",
+                "last_action":     f"Merge failed for {feature['name']}",
             })
             return
-
-        pr_urls    = {k: v["url"] for k, v in prs.items()}
-        pr_numbers = {k: v["number"] for k, v in prs.items() if v.get("number")}
 
         done_count = sum(1 for f in features if f["status"] == "done")
         total      = len(features)
         next_feat  = pending[1]["name"] if len(pending) > 1 else "— last feature —"
+        pr_url     = result.get("url", "")
 
         write_progress({
-            "state":           "awaiting_approval",
+            "state":           "idle",
             "current_feature": feature["name"],
             "branch":          branch,
-            "pr_urls":         pr_urls,
-            "pr_numbers":      pr_numbers,
-            "waiting_since":   datetime.now(timezone.utc).isoformat(),
-            "last_action":     f"PR(s) opened for {feature['name']}",
+            "pr_url":          pr_url,
+            "last_action":     f"Merged {feature['name']} to main",
         })
 
         emailer.send_feature_complete(
@@ -310,12 +232,11 @@ def main():
             done_count=done_count,
             total=total,
             next_feature=next_feat,
-            pr_urls=pr_urls,
+            pr_url=pr_url,
         )
-        log(f"PR opened for '{feature['name']}'. Awaiting your approval.")
+        log(f"Feature '{feature['name']}' merged to main.")
         return
 
-    # ── 6. Mark feature in_progress ───────────────────────────────────────────
     feature["status"] = "in_progress"
     mark_subtask(feature, subtask["text"], "in_progress")
     save_features(features, FEATURES_FILE)
@@ -328,7 +249,6 @@ def main():
         "last_action":      f"Started sub-task: {subtask['text']}",
     })
 
-    # ── 7. Generate code for this sub-task ────────────────────────────────────
     project_context = PROJECT_FILE.read_text() if PROJECT_FILE.exists() else ""
     techstack       = read_techstack(REPO_ROOT)
 
@@ -374,7 +294,6 @@ def main():
             "branch":           branch,
             "pending_env":      pending_env,
             "commit_targets":   commit_targets,
-            "waiting_since":    datetime.now(timezone.utc).isoformat(),
             "last_action":      f"Awaiting env for: {subtask['text']}",
         })
         return
@@ -394,8 +313,6 @@ def _run_heal_and_commit(
     commit_targets: list[str] | None = None,
 ):
     """Self-heal, commit, and mark sub-task done."""
-    targets = commit_targets or LAYOUT.targets_for_subtask(subtask["text"])
-
     passed, error_log = healer.run_tests(LAYOUT)
     retries = 0
 
@@ -419,7 +336,7 @@ def _run_heal_and_commit(
         emailer.send_blocked_notification(feature["name"], subtask["text"], error_log)
         write_progress({"state": "idle", "last_action": f"Blocked after healing: {subtask['text']}"})
         pr_manager.commit_subtask(
-            f"fix: attempted heal for '{subtask['text'][:50]}' [DevAgent]", LAYOUT, targets,
+            f"fix: attempted heal for '{subtask['text'][:50]}' [DevAgent]", LAYOUT,
         )
         return
 
@@ -432,7 +349,7 @@ def _run_heal_and_commit(
     save_features(features, FEATURES_FILE)
 
     commit_msg = _subtask_to_commit(feature["name"], subtask["text"])
-    committed  = pr_manager.commit_subtask(commit_msg, LAYOUT, targets)
+    committed  = pr_manager.commit_subtask(commit_msg, LAYOUT)
     pr_manager.commit_control(f"chore: sync {feature['name']} progress [DevAgent]", LAYOUT)
 
     if committed:
@@ -451,14 +368,14 @@ def _run_heal_and_commit(
 def _subtask_to_commit(feature: str, subtask: str) -> str:
     """Turn a sub-task description into a conventional commit message."""
     sub_lower = subtask.lower()
-    if "backend" in sub_lower or "model" in sub_lower or "schema" in sub_lower:
-        prefix = "feat(backend)"
-    elif "api" in sub_lower or "route" in sub_lower or "endpoint" in sub_lower:
+    if "database" in sub_lower or "model" in sub_lower or "schema" in sub_lower:
+        prefix = "feat(db)"
+    elif "api" in sub_lower or "route" in sub_lower:
         prefix = "feat(api)"
-    elif "frontend" in sub_lower or "component" in sub_lower or "page" in sub_lower or "ui" in sub_lower:
+    elif "ui" in sub_lower or "component" in sub_lower or "page" in sub_lower:
         prefix = "feat(ui)"
-    elif "wiring" in sub_lower or "integration" in sub_lower or "connect" in sub_lower:
-        prefix = "feat(wiring)"
+    elif "integration" in sub_lower or "wiring" in sub_lower or "connect" in sub_lower:
+        prefix = "feat(integration)"
     elif "test" in sub_lower:
         prefix = "test"
     elif "fix" in sub_lower or "bug" in sub_lower:

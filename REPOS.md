@@ -1,73 +1,38 @@
-# Repository Configuration
+# Repository Layout
 
-DevAgent supports **separate GitHub repos** for backend and frontend.
+DevAgent runs in **mono-repo mode only** — one Next.js full-stack app in this repository.
 
-## Dual-repo mode
+## What lives here
 
-Set these GitHub Actions **variables** (Settings → Secrets and variables → Actions → Variables):
+| Path | Purpose |
+|------|---------|
+| `dev_agent/` | Python agent (orchestrator, coder, healer) |
+| `app/` | Next.js App Router pages and API routes |
+| `models/`, `lib/`, `services/` | Sequelize + business logic |
+| `FEATURES.md` | Auto-generated from `PROJECT.md` on first run — editable anytime |
+| `PROJECT.md` | Project description |
+| `TECHSTACK.md` | Stack conventions the agent follows |
 
-```
-BACKEND_REPOSITORY=malikmajeed/dms-backend
-FRONTEND_REPOSITORY=malikmajeed/dms-frontend
-```
+## Git flow
 
-Full URLs also work (auto-normalized to `owner/repo`):
+1. DevAgent reads `PROJECT.md` and generates `FEATURES.md` (if missing)
+2. You can edit `FEATURES.md` to add or change features
+3. DevAgent runs hourly, implements one sub-task per run on `feat/{feature-slug}`
+3. When a feature's sub-tasks are done, it opens a PR and **auto-merges to `main`**
+4. You deploy `main` to Vercel
 
-```
-BACKEND_REPOSITORY=https://github.com/malikmajeed/dms-backend.git
-FRONTEND_REPOSITORY=https://github.com/malikmajeed/dms-frontend.git
-```
+## GitHub secrets
 
-Or uncomment and fill in below (env vars take precedence):
+| Secret | Purpose |
+|--------|---------|
+| `HF_API_KEY` | HuggingFace Inference |
+| `GMAIL_USER` / `GMAIL_APP_PASS` | Email notifications |
+| `DEVAGENT_GITHUB_TOKEN` | Optional PAT with `repo` scope (falls back to `GITHUB_TOKEN`) |
 
-```
-# BACKEND_REPOSITORY=your-org/ngo-backend
-# FRONTEND_REPOSITORY=your-org/ngo-frontend
-```
+Enable **Workflow permissions → Read and write** on this repo.
 
-## Layout
+## Vercel
 
-| Role | What lives here | GitHub slug |
-|------|-----------------|-------------|
-| **Control** (this repo) | `dev_agent/`, `PROJECT.md`, `FEATURES.md`, `PROGRESS.md` | same repo that runs the workflow |
-| **Backend** | Express API, models, routes — checked out to `backend/` | `your-org/ngo-backend` |
-| **Frontend** | Next.js app — checked out to `frontend/` | `your-org/ngo-frontend` |
+Connect this repo. Framework: Next.js. Root: `.`
 
-## Mono-repo mode
-
-Leave `BACKEND_REPOSITORY` and `FRONTEND_REPOSITORY` **empty**. DevAgent commits everything to this repo under `backend/` and `frontend/` folders.
-
-## Permissions
-
-The workflow uses **`DEVAGENT_GITHUB_TOKEN`** (a Personal Access Token) to access private repos.
-
-### Create the PAT
-
-1. GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
-2. Generate token with **`repo`** scope (required for private repositories)
-3. Copy the token
-
-### Add as secret (control repo)
-
-`malikmajeed/dev_agents` → **Settings** → **Secrets and variables** → **Actions** → **New secret**
-
-| Secret name | Value |
-|-------------|--------|
-| `DEVAGENT_GITHUB_TOKEN` | Your PAT (`ghp_...`) |
-
-The workflow falls back to the automatic `GITHUB_TOKEN` if `DEVAGENT_GITHUB_TOKEN` is not set (mono-repo / public only).
-
-Also enable **Workflow permissions → Read and write** on the control repo.
-
-### Empty backend / frontend repos
-
-If `dms-backend` or `dms-frontend` were created on GitHub with **no README / no first commit**, checkout fails at *"Checking out the ref"*. The workflow now auto-pushes an initial `main` commit when needed. Your PAT must have **`repo`** write access.
-
-## `.gitignore` (control repo)
-
-When using dual-repo mode, ignore the nested checkouts in the control repo:
-
-```
-backend/
-frontend/
-```
+Set `DATABASE_URL`, `JWT_SECRET`, and email env vars in the Vercel dashboard.

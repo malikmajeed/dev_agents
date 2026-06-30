@@ -1,5 +1,5 @@
 """
-GitHub PR Manager — mono-repo or separate backend / frontend repositories.
+GitHub PR Manager — Next.js mono-repo: feature branches → auto-merge to main.
 """
 
 import os, subprocess, time, requests
@@ -9,6 +9,7 @@ from utils import log
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 API_BASE     = "https://api.github.com"
+DEFAULT_BASE = "main"
 
 BASE_HEADERS = {
     "Authorization": f"Bearer {GITHUB_TOKEN}",
@@ -56,7 +57,7 @@ def _current_branch(repo_root: Path) -> str:
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
         cwd=repo_root, capture_output=True, text=True, env=_git_env(),
     )
-    return result.stdout.strip() or "main"
+    return result.stdout.strip() or DEFAULT_BASE
 
 
 def _is_dirty(repo_root: Path) -> bool:
@@ -94,7 +95,6 @@ def _sync_with_remote(repo_root: Path, hard_reset: bool = False) -> bool:
         return True
 
     if _is_dirty(repo_root):
-        # Caller has uncommitted work — do not pull/rebase over it
         return True
 
     result = subprocess.run(
@@ -111,12 +111,12 @@ def _sync_with_remote(repo_root: Path, hard_reset: bool = False) -> bool:
 
 
 def _push(repo_root: Path, label: str = "", retries: int = 4) -> bool:
-    """Pull --rebase then push. Retries on non-fast-forward races."""
-    branch = _current_branch(repo_root)
+    """Rebase then push. Retries on non-fast-forward races."""
     for attempt in range(1, retries + 1):
         if not _sync_with_remote(repo_root):
             time.sleep(2 * attempt)
             continue
+        branch = _current_branch(repo_root)
         result = subprocess.run(
             ["git", "push", "-u", "origin", branch],
             cwd=repo_root, capture_output=True, text=True, env=_git_env(),
@@ -130,7 +130,7 @@ def _push(repo_root: Path, label: str = "", retries: int = 4) -> bool:
 
 
 def sync_repo(repo_root: Path) -> bool:
-    """Public: sync repo with remote at start of a run."""
+    """Sync repo with remote at start of a run."""
     if not _has_git(repo_root):
         return True
     return _sync_with_remote(repo_root, hard_reset=True)
@@ -140,9 +140,9 @@ def _has_git(repo_root: Path) -> bool:
     return (repo_root / ".git").exists()
 
 
-def ensure_branch(branch: str, base: str, layout: RepoLayout, target: str):
+def ensure_branch(branch: str, base: str, layout: RepoLayout):
     """Create branch from base if it doesn't exist, else switch."""
-    repo_root = layout.git_root(target)
+    repo_root = layout.git_root()
     if not _has_git(repo_root):
         log(f"PR: skip branch '{branch}' — no git repo at {repo_root}")
         return
@@ -158,55 +158,26 @@ def ensure_branch(branch: str, base: str, layout: RepoLayout, target: str):
             git(["checkout", branch], repo_root)
             _sync_with_remote(repo_root)
             git(["branch", "--set-upstream-to", f"origin/{branch}"], repo_root, check=False)
-            log(f"PR [{target}]: switched to '{branch}'")
+            log(f"PR: switched to '{branch}'")
         else:
             git(["fetch", "origin", base], repo_root)
             git(["checkout", "-b", branch, f"origin/{base}"], repo_root)
-            log(f"PR [{target}]: created '{branch}' from '{base}'")
+            log(f"PR: created '{branch}' from '{base}'")
     finally:
         if stashed:
             _stash_pop(repo_root)
 
 
-def ensure_feature_branches(branch: str, layout: RepoLayout):
-    for target in layout.active_git_targets():
-        ensure_staging(layout, target)
-        ensure_branch(branch, "staging", layout, target)
+def ensure_feature_branch(branch: str, layout: RepoLayout):
+    ensure_branch(branch, DEFAULT_BASE, layout)
 
 
-def ensure_staging(layout: RepoLayout, target: str):
-    """Make sure staging branch exists in the target repo."""
-    repo_root = layout.git_root(target)
-    if not _has_git(repo_root):
-        return
-
-    result = subprocess.run(
-        ["git", "ls-remote", "--heads", "origin", "staging"],
-        cwd=repo_root, capture_output=True, text=True,
-    )
-    if "staging" not in result.stdout:
-        git(["fetch", "origin", "main"], repo_root)
-        git(["checkout", "-b", "staging", "origin/main"], repo_root)
-        if not _push(repo_root, target):
-            log(f"PR [{target}]: failed to push new staging branch")
-        else:
-            log(f"PR [{target}]: created staging from main")
-
-
-def ensure_all_staging(layout: RepoLayout):
-    if layout.dual_repo:
-        for target in layout.active_git_targets():
-            ensure_staging(layout, target)
-    else:
-        ensure_staging(layout, "control")
-
-
-def _commit_one(message: str, layout: RepoLayout, target: str) -> bool:
-    repo_root = layout.git_root(target)
+def _commit_one(message: str, layout: RepoLayout) -> bool:
+    repo_root = layout.git_root()
     if not _has_git(repo_root):
         return False
 
-    label = layout.repo_label(target)
+    label = layout.repo_label()
     git(["config", "user.email", "dev-agent@noreply.local"], repo_root)
     git(["config", "user.name", "DevAgent"], repo_root)
 
@@ -226,8 +197,8 @@ def _commit_one(message: str, layout: RepoLayout, target: str) -> bool:
 
 
 def commit_control(message: str, layout: RepoLayout) -> bool:
-    """Commit only to the control repo (FEATURES.md, PROGRESS.md, etc.)."""
-    return _commit_one(message, layout, "control")
+    """Commit FEATURES.md, PROGRESS.md, app code, etc."""
+    return _commit_one(message, layout)
 
 
 def commit_subtask(
@@ -235,22 +206,7 @@ def commit_subtask(
     layout: RepoLayout,
     targets: list[str] | None = None,
 ) -> bool:
-    """
-    Commit to one or more repos. In dual-repo mode, targets backend/frontend.
-    In mono-repo mode, commits to control only.
-    """
-    if layout.dual_repo:
-        commit_targets = targets or layout.active_git_targets()
-    else:
-        commit_targets = ["control"]
-
-    committed = False
-    for target in commit_targets:
-        if _commit_one(message, layout, target):
-            committed = True
-    if not committed:
-        log("PR: nothing to commit in any repo")
-    return committed
+    return _commit_one(message, layout)
 
 
 def _branch_on_remote(branch: str, repo_root: Path) -> bool:
@@ -261,22 +217,22 @@ def _branch_on_remote(branch: str, repo_root: Path) -> bool:
     return f"refs/heads/{branch}" in result.stdout or branch in result.stdout
 
 
-def push_feature_branch(branch: str, layout: RepoLayout, target: str) -> bool:
+def push_feature_branch(branch: str, layout: RepoLayout) -> bool:
     """Ensure feature branch exists locally and is pushed to origin."""
-    repo_root = layout.git_root(target)
+    repo_root = layout.git_root()
     if not _has_git(repo_root):
         return False
-    ensure_branch(branch, "staging", layout, target)
+    ensure_branch(branch, DEFAULT_BASE, layout)
 
     if not _branch_on_remote(branch, repo_root):
-        return _push(repo_root, layout.repo_label(target))
+        return _push(repo_root, layout.repo_label())
 
     ahead = subprocess.run(
         ["git", "rev-list", "--count", f"origin/{branch}..HEAD"],
         cwd=repo_root, capture_output=True, text=True, env=_git_env(),
     )
     if ahead.returncode != 0:
-        return _push(repo_root, layout.repo_label(target))
+        return _push(repo_root, layout.repo_label())
     try:
         commits_ahead = int((ahead.stdout or "0").strip())
     except ValueError:
@@ -284,18 +240,7 @@ def push_feature_branch(branch: str, layout: RepoLayout, target: str) -> bool:
 
     if commits_ahead == 0:
         return True
-    return _push(repo_root, layout.repo_label(target))
-
-
-def push_all_feature_branches(branch: str, layout: RepoLayout) -> dict[str, bool]:
-    """Push feature branch on every active repo. Returns {target: ok}."""
-    results: dict[str, bool] = {}
-    for target in layout.active_git_targets():
-        ok = push_feature_branch(branch, layout, target)
-        results[target] = ok
-        if not ok:
-            log(f"PR [{target}]: failed to push '{branch}'")
-    return results
+    return _push(repo_root, layout.repo_label())
 
 
 # ── PR lifecycle ─────────────────────────────────────────────────────────────
@@ -304,16 +249,14 @@ def open_pr(
     feature_name: str,
     branch: str,
     layout: RepoLayout,
-    target: str,
-    base: str = "staging",
-) -> str | None:
-    github_repo = layout.github_repo(target)
+    base: str = DEFAULT_BASE,
+) -> dict | None:
+    github_repo = layout.github_repo()
     body = (
         f"## {feature_name}\n\n"
         f"Auto-generated by DevAgent.\n\n"
-        f"**Repo:** `{github_repo}`\n"
         f"**Branch:** `{branch}` → `{base}`\n\n"
-        f"Reply `OK` to the notification email to merge, or merge manually here."
+        f"Will be auto-merged."
     )
     data = _api("POST", github_repo, "/pulls", json={
         "title": f"feat: {feature_name}",
@@ -322,19 +265,17 @@ def open_pr(
         "body":  body,
     })
     if data:
-        url = data.get("html_url", "")
-        log(f"PR [{target}]: opened #{data.get('number')} → {url}")
-        return url
+        log(f"PR: opened #{data.get('number')} → {data.get('html_url', '')}")
+        return data
     return None
 
 
 def get_open_pr(
     branch: str,
     layout: RepoLayout,
-    target: str,
-    base: str = "staging",
+    base: str = DEFAULT_BASE,
 ) -> dict | None:
-    github_repo = layout.github_repo(target)
+    github_repo = layout.github_repo()
     owner = github_repo.split("/")[0]
     data = _api(
         "GET", github_repo,
@@ -345,92 +286,53 @@ def get_open_pr(
     return None
 
 
-def open_feature_prs(
-    feature_name: str,
-    branch: str,
-    layout: RepoLayout,
-) -> dict[str, dict]:
-    """Open PRs on every active repo for this feature. Returns {target: {url, number}}."""
-    push_results = push_all_feature_branches(branch, layout)
-    prs: dict[str, dict] = {}
-    for target in layout.active_git_targets():
-        if not push_results.get(target):
-            log(f"PR [{target}]: skip open — '{branch}' not on remote")
-            continue
-        repo_root = layout.git_root(target)
-        if not _branch_on_remote(branch, repo_root):
-            log(f"PR [{target}]: skip open — '{branch}' missing on origin")
-            continue
-        existing = get_open_pr(branch, layout, target)
-        if existing:
-            prs[target] = {
-                "url":    existing["html_url"],
-                "number": existing["number"],
-            }
-            continue
-        url = open_pr(feature_name, branch, layout, target)
-        pr = get_open_pr(branch, layout, target)
-        if pr:
-            prs[target] = {"url": pr["html_url"], "number": pr["number"]}
-        elif url:
-            prs[target] = {"url": url, "number": None}
-        else:
-            log(f"PR [{target}]: failed to open PR for '{branch}'")
-    return prs
-
-
-def merge_pr(pr_number: int, feature_name: str, layout: RepoLayout, target: str) -> bool:
-    github_repo = layout.github_repo(target)
+def merge_pr(pr_number: int, feature_name: str, layout: RepoLayout) -> bool:
+    github_repo = layout.github_repo()
     data = _api("PUT", github_repo, f"/pulls/{pr_number}/merge", json={
         "commit_title":   f"feat: {feature_name}",
         "commit_message": "Auto-merged by DevAgent",
         "merge_method":   "squash",
     })
     if data:
-        log(f"PR [{target}]: merged #{pr_number}")
+        log(f"PR: merged #{pr_number}")
         return True
     return False
 
 
-def merge_feature_prs(pr_numbers: dict, feature_name: str, layout: RepoLayout):
-    for target, num in pr_numbers.items():
-        if num:
-            merge_pr(int(num), feature_name, layout, target)
-
-
-def open_staging_to_main_pr(
-    done_count: int,
-    total: int,
+def auto_merge_feature_pr(
+    feature_name: str,
+    branch: str,
     layout: RepoLayout,
-    target: str,
-) -> str | None:
-    github_repo = layout.github_repo(target)
-    existing = get_open_pr("staging", layout, target, base="main")
-    if existing:
-        return existing.get("html_url")
+) -> dict | None:
+    """
+    Push feature branch, open PR to main if needed, merge immediately.
+    Returns {url, number} on success, None on failure.
+    """
+    repo_root = layout.git_root()
+    if not push_feature_branch(branch, layout):
+        log(f"PR: failed to push '{branch}'")
+        return None
 
-    data = _api("POST", github_repo, "/pulls", json={
-        "title": f"🚀 Release: all {total} features complete",
-        "head":  "staging",
-        "base":  "main",
-        "body":  (
-            f"## Production Release — {github_repo}\n\n"
-            f"All {done_count}/{total} features merged to staging.\n\n"
-            f"Review staging preview before merging to production."
-        ),
-    })
-    if data:
-        url = data.get("html_url", "")
-        log(f"PR [{target}]: staging→main #{data.get('number')} → {url}")
-        return url
+    if not _branch_on_remote(branch, repo_root):
+        log(f"PR: '{branch}' not on origin after push")
+        return None
+
+    pr = get_open_pr(branch, layout)
+    if not pr:
+        pr = open_pr(feature_name, branch, layout)
+        if not pr:
+            pr = get_open_pr(branch, layout)
+
+    if not pr:
+        log(f"PR: could not open PR for '{branch}'")
+        return None
+
+    pr_number = pr.get("number")
+    if pr_number and merge_pr(int(pr_number), feature_name, layout):
+        git(["fetch", "origin", DEFAULT_BASE], repo_root)
+        git(["checkout", DEFAULT_BASE], repo_root)
+        _sync_with_remote(repo_root)
+        return {"url": pr.get("html_url", ""), "number": pr_number}
+
+    log(f"PR: merge failed for #{pr_number}")
     return None
-
-
-def open_release_prs(done_count: int, total: int, layout: RepoLayout) -> dict[str, str]:
-    """Open staging→main PRs on all active repos."""
-    urls: dict[str, str] = {}
-    for target in layout.active_git_targets():
-        url = open_staging_to_main_pr(done_count, total, layout, target)
-        if url:
-            urls[target] = url
-    return urls

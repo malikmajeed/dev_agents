@@ -12,7 +12,6 @@ GMAIL_USER          = os.environ.get("GMAIL_USER", "")
 GMAIL_APP_PASS      = os.environ.get("GMAIL_APP_PASS", "")
 NOTIFY_EMAIL        = os.environ.get("NOTIFY_EMAIL", GMAIL_USER)
 REPO_NAME           = os.environ.get("GITHUB_REPOSITORY", "your-repo")
-APPROVAL_WAIT_HOURS = float(os.environ.get("APPROVAL_WAIT_HOURS", "999"))
 
 GITHUB_URL = f"https://github.com/{REPO_NAME}"
 
@@ -79,14 +78,14 @@ def _parse_features_md(content: str) -> list[dict]:
 def _subtask_badge(text: str) -> tuple[str, str, str]:
     """Return (label, icon, color) for a sub-task line."""
     t = text.lower()
-    if t.startswith("backend"):
-        return "Backend", "⚙️", "#6366f1"
+    if t.startswith("database"):
+        return "Database", "🗄️", "#6366f1"
     if t.startswith("api"):
         return "API", "🔌", "#8b5cf6"
-    if t.startswith("frontend"):
-        return "Frontend", "🖥️", "#0ea5e9"
-    if t.startswith("wiring"):
-        return "Wiring", "🔗", "#10b981"
+    if t.startswith("ui"):
+        return "UI", "🖥️", "#0ea5e9"
+    if t.startswith("integration"):
+        return "Integration", "🔗", "#10b981"
     return "Task", "📌", "#64748b"
 
 
@@ -175,8 +174,8 @@ def send_plan_notification(features_md: str):
   Your project has been planned
 </h2>
 <p style="text-align:center;color:#6b7280;font-size:15px;line-height:1.6;margin:0 0 8px">
-  DevAgent generated your feature roadmap and will start building automatically.
-  Each completed feature arrives as a GitHub PR for your review.
+  DevAgent generated a feature roadmap from PROJECT.md and will start building automatically.
+  Each completed feature is auto-merged to main. You can edit FEATURES.md anytime.
 </p>
 {plan_html}
 <div style="text-align:center;margin-top:24px">
@@ -200,29 +199,17 @@ def send_feature_complete(
     pr_urls: dict[str, str] | None = None,
 ):
     pct  = int(done_count / total * 100)
-    subject = f"[DevAgent] ✅ '{feature_name}' done ({done_count}/{total}) — PR ready"
+    subject = f"[DevAgent] ✅ '{feature_name}' merged ({done_count}/{total})"
 
     pr_section = ""
-    urls = pr_urls or ({"repo": pr_url} if pr_url else {})
-    if urls:
-        links = "<br>".join(
-            f"<strong>{name}:</strong> <a href=\"{url}\" style=\"color:#15803d\">{url}</a>"
-            for name, url in urls.items() if url
-        )
+    url = pr_url or (list(pr_urls.values())[0] if pr_urls else None)
+    if url:
         pr_section = f"""
 <div style="background:#f0fdf4;border-left:4px solid #22c55e;padding:12px 16px;margin:16px 0;border-radius:4px">
-  <strong>PR(s) open and ready for review:</strong><br>
-  {links}
+  <strong>Merged to main:</strong>
+  <a href="{url}" style="color:#15803d">{url}</a>
 </div>
 """
-
-    wait_note = (
-        f"Reply <b>OK</b> to merge and continue, or <b>SKIP</b> to move on.<br>"
-        f"If no reply in {APPROVAL_WAIT_HOURS:.0f}h, the agent will continue automatically."
-        if APPROVAL_WAIT_HOURS < 999
-        else "Reply <b>OK</b> to merge and continue, or <b>SKIP</b> to move on.<br>"
-             "<em>Auto-continue is disabled — waiting for your reply.</em>"
-    )
 
     body = _base(f"""
 <h2 style="margin-top:0">✅ Feature complete: {feature_name}</h2>
@@ -232,8 +219,7 @@ def send_feature_complete(
 </div>
 {pr_section}
 <p><strong>Next up:</strong> {next_feature}</p>
-<hr style="margin:24px 0;border:none;border-top:1px solid #e5e5e5">
-<p style="color:#555">{wait_note}</p>
+<p style="color:#555">Auto-merged to main. DevAgent will continue on the next scheduled run.</p>
 """)
     _send(subject, body)
 
@@ -283,8 +269,8 @@ SENDGRID_API_KEY=SG.xxx</pre>
 <p><strong>Option B — add manually</strong>, then reply <b>DONE</b>:</p>
 <ol>
   <li>Open <a href="{secrets_url}">GitHub Actions Secrets</a> and add each key above.</li>
-  <li>For frontend vars (<code>NEXT_PUBLIC_*</code>), set them in Vercel or <code>frontend/.env</code> locally.</li>
-  <li>Check <code>ENV_REGISTRY.md</code> and <code>.env.example</code> files in the repo for placeholders.</li>
+  <li>For <code>NEXT_PUBLIC_*</code> vars, set them in Vercel or <code>.env.local</code> locally.</li>
+  <li>Check <code>ENV_REGISTRY.md</code> and <code>.env.example</code> for placeholders.</li>
 </ol>
 <p>Reply <b>DONE</b> or <b>CONFIGURED</b> when finished. DevAgent will resume on the next run.</p>
 """)
@@ -304,24 +290,10 @@ def send_env_configured_notification(feature_name: str, keys: list[str]):
 
 def send_completion_email(pr_url: str | None = None, pr_urls: dict[str, str] | None = None):
     subject = f"[DevAgent] 🎉 All features complete — {REPO_NAME}"
-    urls = pr_urls or ({"repo": pr_url} if pr_url else {})
-    pr_section = ""
-    if urls:
-        links = "<br>".join(
-            f"<strong>{name}:</strong> <a href=\"{url}\" style=\"color:#15803d\">{url}</a>"
-            for name, url in urls.items() if url
-        )
-        pr_section = f"""
-<div style="background:#f0fdf4;border-left:4px solid #22c55e;padding:12px 16px;margin:16px 0;border-radius:4px">
-  <strong>Production PR(s) (staging → main):</strong><br>
-  {links}<br>
-  <em>Review staging previews before merging to production.</em>
-</div>
-"""
     body = _base(f"""
 <h2 style="margin-top:0">🎉 Project complete!</h2>
 <p>DevAgent has finished building all planned features for <strong>{REPO_NAME}</strong>.</p>
-{pr_section}
+<p>All features are merged to <code>main</code>. Deploy from your Vercel dashboard when ready.</p>
 <p><a href="{GITHUB_URL}" style="background:#0070f3;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block">View on GitHub →</a></p>
 """)
     _send(subject, body)

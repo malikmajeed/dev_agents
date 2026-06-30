@@ -10,7 +10,7 @@ PLANNER_PROMPT = """You are a senior software architect. Generate a mid-level fe
 
 Rules:
 - 8–14 features total (not enterprise, not trivial)
-- Each feature has exactly 4 sub-tasks: Backend, API, Frontend, Wiring
+- Each feature has exactly 4 sub-tasks: Database, API, UI, Integration
 - Be specific — name actual files, routes, components
 - Output ONLY valid markdown in the exact format below — no preamble, no explanation
 
@@ -27,10 +27,10 @@ Output format (repeat for each feature):
 **Status:** pending  
 **Priority:** high|medium|low  
 **Sub-tasks:**
-- [ ] Backend: <mongoose model or business logic — name the file>
-- [ ] API: <express routes — list the HTTP methods and paths>
-- [ ] Frontend: <react page/component — name the file>
-- [ ] Wiring: <how backend connects to frontend — axios call, context, etc.>
+- [ ] Database: <Sequelize model — name the file in models/>
+- [ ] API: <Next.js route handler — app/api/.../route.js>
+- [ ] UI: <page or component — app/.../page.js or components/>
+- [ ] Integration: <hooks, services, middleware wiring>
 
 ---
 
@@ -43,7 +43,7 @@ def generate_features(project_description: str, techstack: str, output_path: Pat
     log("Planner: generating feature list...")
     prompt = PLANNER_PROMPT.format(
         description=project_description.strip(),
-        techstack=techstack[:1000] if techstack else "Node.js + Express + React",
+        techstack=techstack[:1000] if techstack else "Next.js 14 + Sequelize + PostgreSQL",
     )
     response = call_hf(prompt, max_tokens=2500)
 
@@ -65,10 +65,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** high  
 **Sub-tasks:**
-- [ ] Backend: User model (models/User.js) with email, password, role fields. bcrypt hashing on save.
-- [ ] API: POST /api/auth/register, POST /api/auth/login, GET /api/auth/me — JWT issued on login
-- [ ] Frontend: LoginPage.jsx, RegisterPage.jsx, ProtectedRoute.jsx wrapper component
-- [ ] Wiring: AuthContext.jsx stores token in memory, axios interceptor attaches Bearer token to all requests
+- [ ] Database: User model (models/User.js) — email, passwordHash, role. bcrypt on create.
+- [ ] API: app/api/auth/register/route.js (POST), app/api/auth/login/route.js (POST), app/api/auth/me/route.js (GET)
+- [ ] UI: app/(auth)/login/page.js, app/(auth)/register/page.js
+- [ ] Integration: lib/auth.js JWT helpers, hooks/useAuth.js, middleware for protected routes
 
 ---
 
@@ -76,10 +76,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** high  
 **Sub-tasks:**
-- [ ] Backend: Donor model (models/Donor.js) — name, email, phone, address, createdAt, totalDonated
-- [ ] API: GET/POST /api/donors, GET/PUT/DELETE /api/donors/:id — auth required
-- [ ] Frontend: DonorsPage.jsx (table list), DonorForm.jsx (add/edit modal), DonorCard.jsx
-- [ ] Wiring: services/donors.js axios wrappers, useDonors custom hook for data fetching
+- [ ] Database: Donor model (models/Donor.js) — name, email, phone, address, totalDonated
+- [ ] API: app/api/donors/route.js (GET, POST), app/api/donors/[id]/route.js (GET, PUT, DELETE)
+- [ ] UI: app/(dashboard)/donors/page.js — table list + add/edit modal
+- [ ] Integration: services/donors.js + hooks/useDonors.js wired to API
 
 ---
 
@@ -87,10 +87,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** high  
 **Sub-tasks:**
-- [ ] Backend: Cause model (models/Cause.js) — title, description, goalAmount, raisedAmount, isActive, imageUrl
-- [ ] API: GET/POST /api/causes, GET/PUT/DELETE /api/causes/:id, PATCH /api/causes/:id/toggle
-- [ ] Frontend: CausesPage.jsx (card grid), CauseForm.jsx (create/edit), CauseCard.jsx (public-facing)
-- [ ] Wiring: services/causes.js, update raisedAmount via donation controller hook
+- [ ] Database: Cause model (models/Cause.js) — title, description, goalAmount, raisedAmount, isActive
+- [ ] API: app/api/causes/route.js (GET, POST), app/api/causes/[id]/route.js (GET, PUT, DELETE, PATCH toggle)
+- [ ] UI: app/(dashboard)/causes/page.js — card grid + create/edit form
+- [ ] Integration: services/causes.js + hooks/useCauses.js; update raisedAmount from donation service
 
 ---
 
@@ -98,10 +98,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** high  
 **Sub-tasks:**
-- [ ] Backend: Donation model (models/Donation.js) — donor ref, cause ref, amount, type (one-time/recurring), date, note
-- [ ] API: GET /api/donations (filterable by donor, cause, date), POST /api/donations
-- [ ] Frontend: DonationForm.jsx (amount, cause selector, donor lookup), DonationsPage.jsx (table with filters)
-- [ ] Wiring: On POST /api/donations — increment Cause.raisedAmount, increment Donor.totalDonated, trigger receipt email
+- [ ] Database: Donation model (models/Donation.js) — donorId, causeId, amount, type, date, note
+- [ ] API: app/api/donations/route.js (GET with filters, POST)
+- [ ] UI: app/(dashboard)/donations/page.js — DonationForm + filterable table
+- [ ] Integration: services/donations.js — increment Cause.raisedAmount and Donor.totalDonated on create
 
 ---
 
@@ -109,10 +109,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** high  
 **Sub-tasks:**
-- [ ] Backend: Student model (models/Student.js) — name, school, program, level, sponsorDonor ref, cause ref, status, enrolledAt
-- [ ] API: GET/POST /api/students, GET/PUT/DELETE /api/students/:id
-- [ ] Frontend: StudentsPage.jsx (searchable list), StudentForm.jsx, StudentProfile.jsx (shows sponsor + cause)
-- [ ] Wiring: services/students.js, StudentProfile links to donor profile and cause detail
+- [ ] Database: Student model (models/Student.js) — name, age, class, profile, sponsorDonorId, causeId, status
+- [ ] API: app/api/students/route.js (GET, POST), app/api/students/[id]/route.js (GET, PUT, DELETE)
+- [ ] UI: app/(dashboard)/students/page.js + public app/students/page.js for donor view
+- [ ] Integration: services/students.js + hooks/useStudents.js
 
 ---
 
@@ -120,10 +120,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** medium  
 **Sub-tasks:**
-- [ ] Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)
-- [ ] API: Internal sendReceipt(donationId) called from donation controller — not a public endpoint
-- [ ] Frontend: ReceiptPreview.jsx shown in donor profile history (renders same HTML template)
-- [ ] Wiring: POST /api/donations controller calls sendReceipt after saving — async, non-blocking
+- [ ] Database: (uses Donation model) — no new model
+- [ ] API: lib/email.js sendReceipt(donationId) called from donation service — not a public route
+- [ ] UI: components/ReceiptPreview.js — preview in donor history
+- [ ] Integration: services/donations.js calls sendReceipt after POST — async, non-blocking
 
 ---
 
@@ -131,10 +131,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** medium  
 **Sub-tasks:**
-- [ ] Backend: controllers/dashboard.js — aggregate queries: total raised, donor count, active causes, recent donations
-- [ ] API: GET /api/dashboard/stats — returns { totalRaised, donorCount, activeCauses, recentDonations[] }
-- [ ] Frontend: DashboardPage.jsx — StatsCards.jsx (4 KPI cards), DonationsChart.jsx (Chart.js bar), RecentTable.jsx
-- [ ] Wiring: services/dashboard.js, dashboard polls every 60s via useInterval hook
+- [ ] Database: aggregate queries only — no new model
+- [ ] API: app/api/dashboard/stats/route.js (GET) — totalRaised, donorCount, activeCauses, recentDonations
+- [ ] UI: app/(dashboard)/page.js — KPI cards + chart + recent donations table
+- [ ] Integration: hooks/useDashboard.js polling stats every 60s
 
 ---
 
@@ -142,10 +142,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** low  
 **Sub-tasks:**
-- [ ] Backend: controllers/reports.js — query donations by date range + cause, format as CSV using json2csv
-- [ ] API: GET /api/reports/donations?from=&to=&causeId= — streams CSV file download
-- [ ] Frontend: ReportsPage.jsx — date range pickers, cause filter dropdown, Download CSV button
-- [ ] Wiring: axios GET with responseType blob, trigger browser download via URL.createObjectURL
+- [ ] Database: query donations by date range — no new model
+- [ ] API: app/api/reports/donations/route.js (GET) — CSV download with from, to, causeId params
+- [ ] UI: app/(dashboard)/reports/page.js — date pickers, cause filter, download button
+- [ ] Integration: hooks/useReports.js — fetch blob and trigger browser download
 
 ---
 
@@ -153,10 +153,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** medium  
 **Sub-tasks:**
-- [ ] Backend: GET /api/public/causes (no auth), POST /api/public/donate (creates donor if not exists + donation)
-- [ ] API: Public routes mounted at /api/public — no JWT middleware
-- [ ] Frontend: PublicPage.jsx (landing), PublicCauseCard.jsx, PublicDonateForm.jsx (inline donor info collection)
-- [ ] Wiring: PublicDonateForm submits to /api/public/donate, shows success message + triggers receipt email
+- [ ] Database: (uses Donor, Donation, Cause) — no new model
+- [ ] API: app/api/public/causes/route.js (GET), app/api/public/donate/route.js (POST, no auth)
+- [ ] UI: app/(public)/donate/page.js — cause cards + inline donate form
+- [ ] Integration: hooks/usePublicDonate.js — submit to public API, show success + trigger receipt
 
 ---
 
@@ -164,10 +164,10 @@ def _ngo_fallback() -> str:
 **Status:** pending  
 **Priority:** medium  
 **Sub-tasks:**
-- [ ] Backend: middleware/authorize.js — checks req.user.role against allowed roles array
-- [ ] API: Apply authorize(['admin']) to destructive routes (DELETE, PUT on donors/causes/students)
-- [ ] Frontend: RoleBadge.jsx, hide admin-only UI elements based on AuthContext role
-- [ ] Wiring: Role stored in JWT payload, decoded in auth middleware, passed as req.user.role
+- [ ] Database: role field on User model (admin|staff)
+- [ ] API: lib/authorize.js — check role on destructive routes in route handlers
+- [ ] UI: components/RoleBadge.js — hide admin-only actions in dashboard
+- [ ] Integration: middleware.js or layout checks role from JWT for /dashboard routes
 
 ---
 """

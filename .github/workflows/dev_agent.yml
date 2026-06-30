@@ -10,16 +10,11 @@ on:
         description: "Force a specific feature (leave blank for auto)"
         required: false
         default: ""
-      skip_approval_wait:
-        description: "Skip approval wait this run? (true/false)"
-        required: false
-        default: "false"
 
 permissions:
   contents: write
   pull-requests: write
 
-# One run at a time — prevents push races on main / feature branches
 concurrency:
   group: dev-agent-${{ github.repository }}
   cancel-in-progress: false
@@ -30,107 +25,9 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      # ── Normalize owner/repo slugs (accepts full GitHub URLs too) ────────────
-      - name: Normalize repository variables
-        id: repos
-        run: |
-          normalize() {
-            v="$1"
-            v="${v#https://github.com/}"
-            v="${v#http://github.com/}"
-            v="${v#git@github.com:}"
-            v="${v%.git}"
-            v="${v%/}"
-            echo "$v"
-          }
-          echo "backend=$(normalize '${{ vars.BACKEND_REPOSITORY }}')" >> "$GITHUB_OUTPUT"
-          echo "frontend=$(normalize '${{ vars.FRONTEND_REPOSITORY }}')" >> "$GITHUB_OUTPUT"
-
-      # ── Initialize empty backend/frontend repos (checkout fails with no commits) ─
-      - name: Ensure backend and frontend repos initialized
-        if: steps.repos.outputs.backend != '' || steps.repos.outputs.frontend != ''
-        env:
-          GH_TOKEN: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          BACKEND_REPO: ${{ steps.repos.outputs.backend }}
-          FRONTEND_REPO: ${{ steps.repos.outputs.frontend }}
-        run: |
-          ensure_repo() {
-            local REPO="$1"
-            [ -z "$REPO" ] && return 0
-
-            # Fetch default branch from GitHub API
-            meta=$(curl -s \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${REPO}")
-            default_branch=$(echo "$meta" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('default_branch') or 'main')" 2>/dev/null || echo "main")
-            size=$(echo "$meta" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('size', 0))" 2>/dev/null || echo "0")
-
-            # Repo already has content — skip
-            if [ "$size" != "0" ] && [ -n "$size" ]; then
-              echo "${REPO} already has commits (size=${size}) — skipping init"
-              return 0
-            fi
-
-            # Check if default branch exists on remote
-            if git ls-remote --heads "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "$default_branch" 2>/dev/null | grep -q .; then
-              echo "${REPO} already has branch ${default_branch} — skipping init"
-              return 0
-            fi
-
-            echo "::notice::Initializing empty repo ${REPO} on branch ${default_branch}"
-            work=$(mktemp -d)
-            cd "$work"
-            git init -b "$default_branch"
-            git config user.name "DevAgent"
-            git config user.email "dev-agent@noreply.local"
-            echo "# ${REPO##*/}" > README.md
-            git add README.md
-            git commit -m "chore: initial commit [DevAgent]"
-            git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
-
-            if git push -u origin "$default_branch"; then
-              echo "Initialized ${REPO}"
-            else
-              # Another process may have pushed first (e.g. GitHub UI README) — not fatal
-              if git ls-remote --heads origin "$default_branch" 2>/dev/null | grep -q .; then
-                echo "::notice::Push skipped — ${REPO} was initialized by another source"
-              else
-                echo "::error::Failed to initialize ${REPO}"
-                return 1
-              fi
-            fi
-          }
-
-          ensure_repo "$BACKEND_REPO"
-          ensure_repo "$FRONTEND_REPO"
-
-      # ── Checkout control repo (dev_agent + PROJECT.md + FEATURES.md) ─────────
-      - name: Checkout control repo
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          token: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-
-      # ── Checkout backend repo (dual-repo mode) ───────────────────────────────
-      - name: Checkout backend repo
-        if: steps.repos.outputs.backend != ''
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.repos.outputs.backend }}
-          ref: main
-          path: backend
-          fetch-depth: 0
-          token: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-
-      # ── Checkout frontend repo (dual-repo mode) ──────────────────────────────
-      - name: Checkout frontend repo
-        if: steps.repos.outputs.frontend != ''
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ steps.repos.outputs.frontend }}
-          ref: main
-          path: frontend
           fetch-depth: 0
           token: ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
@@ -139,22 +36,15 @@ jobs:
           git config user.name  "DevAgent"
           git config user.email "dev-agent@noreply.local"
 
-      - name: Sync all repos with remote
+      - name: Sync repo with remote
         run: |
-          sync_repo() {
-            local dir="$1"
-            [ -d "$dir/.git" ] || return 0
-            branch=$(git -C "$dir" rev-parse --abbrev-ref HEAD)
-            git -C "$dir" fetch origin
-            git -C "$dir" pull --rebase origin "$branch" || {
-              echo "::warning::Rebase failed in $dir — resetting to origin/$branch"
-              git -C "$dir" rebase --abort 2>/dev/null || true
-              git -C "$dir" reset --hard "origin/$branch"
-            }
+          branch=$(git rev-parse --abbrev-ref HEAD)
+          git fetch origin
+          git pull --rebase origin "$branch" || {
+            echo "::warning::Rebase failed — resetting to origin/$branch"
+            git rebase --abort 2>/dev/null || true
+            git reset --hard "origin/$branch"
           }
-          sync_repo "."
-          sync_repo "backend"
-          sync_repo "frontend"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -169,10 +59,9 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install backend deps (if package.json exists)
+      - name: Install app deps
         run: |
-          if [ -f backend/package.json ]; then
-            cd backend
+          if [ -f package.json ]; then
             npm ci --prefer-offline 2>/dev/null || npm install
           fi
 
@@ -185,16 +74,11 @@ jobs:
           GMAIL_APP_PASS:       ${{ secrets.GMAIL_APP_PASS }}
           NOTIFY_EMAIL:         ${{ vars.NOTIFY_EMAIL || secrets.GMAIL_USER }}
 
-          APPROVAL_WAIT_HOURS:  ${{ vars.APPROVAL_WAIT_HOURS || '999' }}
           MAX_HEAL_RETRIES:     ${{ vars.MAX_HEAL_RETRIES || '3' }}
           FORCE_FEATURE:        ${{ github.event.inputs.force_feature }}
 
           GITHUB_TOKEN:         ${{ secrets.DEVAGENT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY:    ${{ github.repository }}
-
-          # Dual-repo: owner/repo slugs (URLs are normalized in an earlier step)
-          BACKEND_REPOSITORY:   ${{ steps.repos.outputs.backend }}
-          FRONTEND_REPOSITORY:  ${{ steps.repos.outputs.frontend }}
 
           REPO_ROOT:            ${{ github.workspace }}
         run: |
@@ -211,10 +95,6 @@ jobs:
               echo "Collected: $f"
             fi
           done
-          if [ -z "$(ls -A run-artifacts 2>/dev/null)" ]; then
-            echo "::warning::No artifact files found in workspace root"
-            ls -la
-          fi
 
       - name: Upload run logs
         if: always()
