@@ -1,11 +1,9 @@
-import { DataTypes } from 'sequelize';
-import sequelize from '../lib/db.js';
+import { DataTypes, Model } from 'sequelize';
+import db from '../lib/db.js';
 
-// Donor model definition
-// Represents an individual who can make donations to the NGO.
-// Fields include personal contact information and a running total of donations.
-const Donor = sequelize.define(
-  'Donor',
+class Donor extends Model {}
+
+Donor.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -34,12 +32,10 @@ const Donor = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    totalDonated: {
-      type: DataTypes.DECIMAL(12, 2),
-      defaultValue: 0,
-    },
   },
   {
+    sequelize: db,
+    modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
     underscored: true,
