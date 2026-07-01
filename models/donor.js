@@ -1,5 +1,5 @@
 import { DataTypes, Model } from 'sequelize';
-import sequelize from '../lib/db.js';
+import db from '../lib/db.js';
 
 class Donor extends Model {}
 
@@ -34,24 +34,18 @@ Donor.init(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    // Virtual field for convenience
-    fullName: {
-      type: DataTypes.VIRTUAL,
-      get() {
-        return `${this.firstName} ${this.lastName}`;
-      },
-      set() {
-        throw new Error('Do not try to set the `fullName` value directly.');
-      },
-    },
   },
   {
-    sequelize,
+    sequelize: db,
     modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
-    underscored: true,
   }
 );
+
+// Define associations if related models exist
+if (db.models.Donation) {
+  Donor.hasMany(db.models.Donation, { foreignKey: 'donorId', as: 'donations' });
+}
 
 export default Donor;
