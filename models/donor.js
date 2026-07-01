@@ -1,16 +1,14 @@
-import { DataTypes } from 'sequelize';
-import { sequelize } from '../lib/db.js';
+import { DataTypes, Model } from 'sequelize';
+import sequelize from '../lib/db.js';
 
-// Donor model definition
-// Represents an individual donor who can make many donations.
-// Fields are kept minimal for the MVP; additional profile data can be added later.
-const Donor = sequelize.define(
-  'Donor',
+class Donor extends Model {}
+
+Donor.init(
   {
     id: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
-      autoIncrement: true,
     },
     firstName: {
       type: DataTypes.STRING,
@@ -36,28 +34,24 @@ const Donor = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    // Store bcrypt hashed password for authentication
-    passwordHash: {
-      type: DataTypes.STRING,
-      allowNull: false,
+    // Virtual field for convenience
+    fullName: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return `${this.firstName} ${this.lastName}`;
+      },
+      set() {
+        throw new Error('Do not try to set the `fullName` value directly.');
+      },
     },
   },
   {
+    sequelize,
+    modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
     underscored: true,
   }
 );
-
-// Associations – defined in a separate init step to avoid circular imports.
-// The Donation model (not shown here) will reference donorId.
-Donor.associate = (models) => {
-  if (models.Donation) {
-    Donor.hasMany(models.Donation, {
-      foreignKey: 'donor_id',
-      as: 'donations',
-    });
-  }
-};
 
 export default Donor;
