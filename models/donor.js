@@ -1,10 +1,11 @@
-import { DataTypes, Model } from 'sequelize';
+import { DataTypes } from 'sequelize';
 import sequelize from '../lib/db.js';
-import bcrypt from 'bcryptjs';
 
-class Donor extends Model {}
-
-Donor.init(
+// Donor model definition
+// Represents an individual who can make donations to the NGO.
+// Fields include personal contact information and a running total of donations.
+const Donor = sequelize.define(
+  'Donor',
   {
     id: {
       type: DataTypes.UUID,
@@ -23,9 +24,7 @@ Donor.init(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      validate: {
-        isEmail: true,
-      },
+      validate: { isEmail: true },
     },
     phone: {
       type: DataTypes.STRING,
@@ -35,43 +34,15 @@ Donor.init(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    // Virtual field for raw password input; not persisted
-    password: {
-      type: DataTypes.VIRTUAL,
-      allowNull: false,
-    },
-    passwordHash: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      allowNull: false,
-      defaultValue: DataTypes.NOW,
+    totalDonated: {
+      type: DataTypes.DECIMAL(12, 2),
+      defaultValue: 0,
     },
   },
   {
-    sequelize,
-    modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
-    hooks: {
-      beforeCreate: async (donor) => {
-        if (donor.password) {
-          donor.passwordHash = await bcrypt.hash(donor.password, 10);
-        }
-      },
-      beforeUpdate: async (donor) => {
-        if (donor.password) {
-          donor.passwordHash = await bcrypt.hash(donor.password, 10);
-        }
-      },
-    },
+    underscored: true,
   }
 );
 
