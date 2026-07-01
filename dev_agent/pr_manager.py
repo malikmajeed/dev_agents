@@ -200,7 +200,8 @@ def _commit_one(message: str, layout: RepoLayout) -> bool:
         ["git", "diff", "--cached", "--quiet"], cwd=repo_root,
     )
     if result.returncode == 0:
-        return False
+        log(f"PR [{label}]: nothing to commit")
+        return True
 
     git(["commit", "-m", message], repo_root)
     if not _push(repo_root, label):

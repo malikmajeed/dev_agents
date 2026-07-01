@@ -356,15 +356,6 @@ def _run_heal_and_commit(
     save_features(features, FEATURES_FILE)
 
     commit_msg = _subtask_to_commit(feature["name"], subtask["text"])
-    if not pr_manager.commit_subtask(commit_msg, LAYOUT):
-        log("ERROR: failed to commit/push sub-task code")
-        sys.exit(1)
-    if not pr_manager.commit_control(f"chore: sync {feature['name']} progress [DevAgent]", LAYOUT):
-        log("ERROR: failed to push progress after sub-task")
-        sys.exit(1)
-
-    update_techstack(REPO_ROOT, "DevAgent", "last_commit", commit_msg)
-
     write_progress({
         "state":           "idle",
         "current_feature": feature["name"],
@@ -372,6 +363,12 @@ def _run_heal_and_commit(
         "branch":          branch,
         "last_action":     commit_msg,
     })
+
+    if not pr_manager.commit_subtask(commit_msg, LAYOUT):
+        log("ERROR: failed to commit/push sub-task code")
+        sys.exit(1)
+
+    update_techstack(REPO_ROOT, "DevAgent", "last_commit", commit_msg)
     log(f"Sub-task done: '{subtask['text']}'")
 
 
