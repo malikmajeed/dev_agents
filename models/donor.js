@@ -1,9 +1,10 @@
-import db from '../lib/db.js';
-import { DataTypes } from 'sequelize';
+import { DataTypes, Model } from 'sequelize';
+import sequelize from '../lib/db.js';
+import bcrypt from 'bcryptjs';
 
-// Define the Donor model
-const Donor = db.define(
-  'Donor',
+class Donor extends Model {}
+
+Donor.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -34,24 +35,44 @@ const Donor = db.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    // Timestamps are added automatically by Sequelize when `timestamps: true`
+    // Virtual field for raw password input; not persisted
+    password: {
+      type: DataTypes.VIRTUAL,
+      allowNull: false,
+    },
+    passwordHash: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
   },
   {
+    sequelize,
+    modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
-    underscored: true,
+    hooks: {
+      beforeCreate: async (donor) => {
+        if (donor.password) {
+          donor.passwordHash = await bcrypt.hash(donor.password, 10);
+        }
+      },
+      beforeUpdate: async (donor) => {
+        if (donor.password) {
+          donor.passwordHash = await bcrypt.hash(donor.password, 10);
+        }
+      },
+    },
   }
 );
-
-// Associations – will be called from a central association loader after all models are imported
-Donor.associate = (models) => {
-  // A donor can have many donations (assuming a Donation model exists)
-  if (models.Donation) {
-    Donor.hasMany(models.Donation, {
-      foreignKey: 'donor_id',
-      as: 'donations',
-    });
-  }
-};
 
 export default Donor;
