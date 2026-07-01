@@ -4,7 +4,7 @@
 **Status:** in_progress 🔄  
 **Priority:** high  
 **Sub-tasks:**
-- [p] Database: `models/donor.js`
+- [x] Database: `models/donor.js`
 - [ ] API: `app/api/donors/route.js`
 - [ ] UI: `app/admin/donors/page.js`
 - [ ] Integration: `services/donorService.js` (hooks `hooks/useDonors.js` and controller wiring)
