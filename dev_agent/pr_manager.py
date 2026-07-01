@@ -81,12 +81,23 @@ def _stash_pop(repo_root: Path) -> None:
     )
 
 
+def _remote_branch_exists(repo_root: Path, branch: str) -> bool:
+    result = subprocess.run(
+        ["git", "show-ref", "--verify", f"refs/remotes/origin/{branch}"],
+        cwd=repo_root, capture_output=True, env=_git_env(),
+    )
+    return result.returncode == 0
+
+
 def _sync_with_remote(repo_root: Path, hard_reset: bool = False) -> bool:
     """Fetch and rebase current branch onto origin. Returns False on conflict."""
     branch = _current_branch(repo_root)
     git(["fetch", "origin"], repo_root)
 
     if hard_reset:
+        if not _remote_branch_exists(repo_root, branch):
+            log(f"PR: no origin/{branch} yet — skip hard reset")
+            return True
         git(["reset", "--hard", f"origin/{branch}"], repo_root)
         subprocess.run(
             ["git", "clean", "-fd"], cwd=repo_root, env=_git_env(), check=False,
@@ -95,6 +106,9 @@ def _sync_with_remote(repo_root: Path, hard_reset: bool = False) -> bool:
         return True
 
     if _is_dirty(repo_root):
+        return True
+
+    if not _remote_branch_exists(repo_root, branch):
         return True
 
     result = subprocess.run(

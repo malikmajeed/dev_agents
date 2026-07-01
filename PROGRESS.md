@@ -1,21 +1,18 @@
 # Agent Progress
 
-_Last updated: 2026-06-30T12:16:36.814827+00:00_
+_Last updated: reset for mono-repo_
 
-**State:** 🔨 `working`  
-**Feature:** Donation receipt emails  
-**Sub-task:** Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)  
-**Branch:** feat/donation-receipt-emails  
+**State:** 💤 `idle`  
+**Feature:** —  
+**Sub-task:** —  
+**Branch:** —  
 **PR:** —  
-**Repos:** dual (backend + frontend)  
-**Last action:** Started sub-task: Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)
+**Layout:** Next.js mono-repo  
+**Last action:** Reset — prior dual-repo state cleared
 
 ```json
 {
-  "state": "working",
-  "current_feature": "Donation receipt emails",
-  "current_subtask": "Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)",
-  "branch": "feat/donation-receipt-emails",
-  "last_action": "Started sub-task: Backend: config/email.js (nodemailer transporter), receiptTemplate.js (HTML email template with amount, cause, date)"
+  "state": "idle",
+  "last_action": "Reset for mono-repo agent"
 }
 ```

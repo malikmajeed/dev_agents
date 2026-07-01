@@ -93,8 +93,10 @@ def main():
         techstack    = read_techstack(REPO_ROOT)
         planner.generate_features(project_desc, techstack, FEATURES_FILE)
         bootstrap.ensure_scaffold(REPO_ROOT)
-        pr_manager.commit_control("chore: initial feature plan + scaffold [DevAgent]", LAYOUT)
         write_progress({"state": "planned", "last_action": "Generated FEATURES.md from PROJECT.md"})
+        if not pr_manager.commit_control("chore: initial feature plan + scaffold [DevAgent]", LAYOUT):
+            log("ERROR: failed to commit initial plan")
+            sys.exit(1)
         emailer.send_plan_notification(FEATURES_FILE.read_text())
         return
 
@@ -248,6 +250,11 @@ def main():
         "branch":           branch,
         "last_action":      f"Started sub-task: {subtask['text']}",
     })
+    if not pr_manager.commit_control(
+        f"chore: start {feature['name']} subtask [DevAgent]", LAYOUT
+    ):
+        log("ERROR: failed to commit progress before coding")
+        sys.exit(1)
 
     project_context = PROJECT_FILE.read_text() if PROJECT_FILE.exists() else ""
     techstack       = read_techstack(REPO_ROOT)
@@ -263,7 +270,7 @@ def main():
         pr_manager.commit_control(
             f"chore: block subtask '{subtask['text'][:50]}' [DevAgent]", LAYOUT
         )
-        return
+        sys.exit(1)
 
     commit_targets = success.get("targets") or LAYOUT.targets_for_subtask(subtask["text"])
 
@@ -349,11 +356,14 @@ def _run_heal_and_commit(
     save_features(features, FEATURES_FILE)
 
     commit_msg = _subtask_to_commit(feature["name"], subtask["text"])
-    committed  = pr_manager.commit_subtask(commit_msg, LAYOUT)
-    pr_manager.commit_control(f"chore: sync {feature['name']} progress [DevAgent]", LAYOUT)
+    if not pr_manager.commit_subtask(commit_msg, LAYOUT):
+        log("ERROR: failed to commit/push sub-task code")
+        sys.exit(1)
+    if not pr_manager.commit_control(f"chore: sync {feature['name']} progress [DevAgent]", LAYOUT):
+        log("ERROR: failed to push progress after sub-task")
+        sys.exit(1)
 
-    if committed:
-        update_techstack(REPO_ROOT, "DevAgent", "last_commit", commit_msg)
+    update_techstack(REPO_ROOT, "DevAgent", "last_commit", commit_msg)
 
     write_progress({
         "state":           "idle",
