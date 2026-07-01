@@ -1,10 +1,10 @@
 # FEATURES
 
 ## Donor Management
-**Status:** pending  
+**Status:** in_progress 🔄  
 **Priority:** high  
 **Sub-tasks:**
-- [ ] Database: `models/donor.js`
+- [p] Database: `models/donor.js`
 - [ ] API: `app/api/donors/route.js`
 - [ ] UI: `app/admin/donors/page.js`
 - [ ] Integration: `services/donorService.js` (hooks `hooks/useDonors.js` and controller wiring)
@@ -12,7 +12,7 @@
 ---
 
 ## Cause (Campaign) Management
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** high  
 **Sub-tasks:**
 - [ ] Database: `models/cause.js`
@@ -23,7 +23,7 @@
 ---
 
 ## Donation Recording
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** high  
 **Sub-tasks:**
 - [ ] Database: `models/donation.js`
@@ -34,7 +34,7 @@
 ---
 
 ## Student Beneficiary Management
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** high  
 **Sub-tasks:**
 - [ ] Database: `models/student.js`
@@ -45,7 +45,7 @@
 ---
 
 ## Public Donation Page
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** high  
 **Sub-tasks:**
 - [ ] Database: `models/donation.js` (reuse)
@@ -56,7 +56,7 @@
 ---
 
 ## Authentication (Login & Registration)
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** high  
 **Sub-tasks:**
 - [ ] Database: `models/user.js`
@@ -67,7 +67,7 @@
 ---
 
 ## Email Receipt Service
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** medium  
 **Sub-tasks:**
 - [ ] Database: `models/emailLog.js`
@@ -78,7 +78,7 @@
 ---
 
 ## Admin Dashboard & Statistics
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** medium  
 **Sub-tasks:**
 - [ ] Database: (no new model, uses aggregates)
@@ -89,7 +89,7 @@
 ---
 
 ## Reporting & CSV Export
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** medium  
 **Sub-tasks:**
 - [ ] Database: (leverages existing models)
@@ -100,10 +100,12 @@
 ---
 
 ## Role‑Based Access Control
-**Status:** pending  
+**Status:** pending ⏳  
 **Priority:** low  
 **Sub-tasks:**
 - [ ] Database: (adds `role` column to `models/user.js`)
 - [ ] API: `middleware/requireRole.js`
 - [ ] UI: `components/ProtectedRoute.jsx`
 - [ ] Integration: `services/authService.js` (role checks in hooks)
+
+---

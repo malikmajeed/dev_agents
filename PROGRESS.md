@@ -1,18 +1,21 @@
 # Agent Progress
 
-_Last updated: reset for mono-repo_
+_Last updated: 2026-07-01T06:10:30.235004+00:00_
 
-**State:** 💤 `idle`  
-**Feature:** —  
-**Sub-task:** —  
-**Branch:** —  
+**State:** 🔨 `working`  
+**Feature:** Donor Management  
+**Sub-task:** Database: `models/donor.js`  
+**Branch:** feat/donor-management  
 **PR:** —  
 **Layout:** Next.js mono-repo  
-**Last action:** Reset — prior dual-repo state cleared
+**Last action:** Started sub-task: Database: `models/donor.js`
 
 ```json
 {
-  "state": "idle",
-  "last_action": "Reset for mono-repo agent"
+  "state": "working",
+  "current_feature": "Donor Management",
+  "current_subtask": "Database: `models/donor.js`",
+  "branch": "feat/donor-management",
+  "last_action": "Started sub-task: Database: `models/donor.js`"
 }
 ```
