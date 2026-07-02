@@ -1,5 +1,5 @@
 import { DataTypes, Model } from 'sequelize';
-import db from '../lib/db.js';
+import sequelize from '../lib/db.js';
 
 class Donor extends Model {}
 
@@ -22,7 +22,9 @@ Donor.init(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      validate: { isEmail: true },
+      validate: {
+        isEmail: true,
+      },
     },
     phone: {
       type: DataTypes.STRING,
@@ -34,11 +36,18 @@ Donor.init(
     },
   },
   {
-    sequelize: db,
+    sequelize,
     modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
   }
 );
+
+// Define associations (if related models exist)
+Donor.associate = (models) => {
+  if (models.Donation) {
+    Donor.hasMany(models.Donation, { foreignKey: 'donorId', as: 'donations' });
+  }
+};
 
 export default Donor;
