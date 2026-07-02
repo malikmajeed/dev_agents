@@ -1,57 +1,46 @@
-import { DataTypes, Model } from 'sequelize';
-import sequelize from '../lib/db.js';
+import sequelize from '../lib/db';
+import { DataTypes } from 'sequelize';
 
-class Donor extends Model {}
-
-Donor.init(
-  {
-    id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
-      primaryKey: true,
-    },
-    firstName: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    lastName: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    email: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      unique: true,
-      validate: { isEmail: true },
-    },
-    passwordHash: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    phone: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    address: {
-      type: DataTypes.TEXT,
-      allowNull: true,
+const Donor = sequelize.define('Donor', {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
+  },
+  firstName: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  lastName: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  email: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    validate: {
+      isEmail: true,
     },
   },
-  {
-    sequelize,
-    modelName: 'Donor',
-    tableName: 'donors',
-    timestamps: true,
-    underscored: true,
-  }
-);
+  phone: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  address: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+}, {
+  tableName: 'donors',
+  timestamps: true,
+});
 
 // Define associations – will be called from the central model index after all models are loaded
 Donor.associate = (models) => {
-  Donor.hasMany(models.Donation, {
-    foreignKey: 'donor_id',
-    as: 'donations',
-  });
+  if (models.Donation) {
+    Donor.hasMany(models.Donation, { foreignKey: 'donorId', as: 'donations' });
+  }
 };
 
 export default Donor;
