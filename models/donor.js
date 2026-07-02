@@ -34,6 +34,7 @@ Donor.init(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    // timestamps are added automatically when `timestamps: true`
   },
   {
     sequelize,
@@ -42,12 +43,5 @@ Donor.init(
     timestamps: true,
   }
 );
-
-// Define associations (if related models exist)
-Donor.associate = (models) => {
-  if (models.Donation) {
-    Donor.hasMany(models.Donation, { foreignKey: 'donorId', as: 'donations' });
-  }
-};
 
 export default Donor;
