@@ -1,9 +1,9 @@
-import { sequelize, DataTypes } from '../lib/db';
+import { DataTypes, Model } from 'sequelize';
+import db from '../lib/db.js';
 
-// Define the Donor model representing a person who can make donations.
-// Fields are kept simple for the MVP; additional attributes can be added later.
-const Donor = sequelize.define(
-  'Donor',
+class Donor extends Model {}
+
+Donor.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -36,21 +36,12 @@ const Donor = sequelize.define(
     },
   },
   {
+    sequelize: db,
+    modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
-    // Ensure the JSON representation does not leak any future sensitive fields.
-    defaultScope: {
-      attributes: { exclude: [] },
-    },
+    underscored: true,
   }
 );
-
-// Associations – placed here to keep model definitions self‑contained.
-// The actual Donation model will be defined elsewhere; this guard avoids runtime errors.
-Donor.associate = (models) => {
-  if (models.Donation) {
-    Donor.hasMany(models.Donation, { foreignKey: 'donorId', as: 'donations' });
-  }
-};
 
 export default Donor;
