@@ -1,24 +1,14 @@
 import { DataTypes, Model } from 'sequelize';
 import db from '../lib/db.js';
-import bcrypt from 'bcryptjs';
 
-class Donor extends Model {
-  /**
-   * Verify a plain text password against the stored hash.
-   * @param {string} password
-   * @returns {Promise<boolean>}
-   */
-  async verifyPassword(password) {
-    return bcrypt.compare(password, this.passwordHash);
-  }
-}
+class Donor extends Model {}
 
 Donor.init(
   {
     id: {
       type: DataTypes.UUID,
-      primaryKey: true,
       defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
     },
     firstName: {
       type: DataTypes.STRING,
@@ -36,24 +26,6 @@ Donor.init(
         isEmail: true,
       },
     },
-    // Virtual field used only for setting a password; it hashes into passwordHash.
-    password: {
-      type: DataTypes.VIRTUAL,
-      set(value) {
-        // Store the plain password temporarily (not persisted)
-        this.setDataValue('password', value);
-        // Hash and store in passwordHash
-        const hash = bcrypt.hashSync(value, 10);
-        this.setDataValue('passwordHash', hash);
-      },
-      validate: {
-        len: [6, 100], // enforce reasonable length
-      },
-    },
-    passwordHash: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
     phone: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -62,20 +34,18 @@ Donor.init(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    totalDonated: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0,
+    },
   },
   {
     sequelize: db,
     modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
-    // By default omit the password hash from JSON responses
-    defaultScope: {
-      attributes: { exclude: ['passwordHash'] },
-    },
-    // Scope to include the hash when needed (e.g., auth checks)
-    scopes: {
-      withPassword: { attributes: {} },
-    },
+    underscored: true,
   }
 );
 
