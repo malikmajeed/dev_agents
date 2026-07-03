@@ -1,9 +1,11 @@
-import { DataTypes, Model } from 'sequelize';
-import db from '../lib/db.js';
+import { DataTypes } from 'sequelize';
+import sequelize from '../lib/db.js';
 
-class Donor extends Model {}
-
-Donor.init(
+// Donor model definition
+// Represents an individual donor with contact information.
+// Additional associations (e.g., donations) can be added in the service layer.
+const Donor = sequelize.define(
+  'Donor',
   {
     id: {
       type: DataTypes.UUID,
@@ -36,11 +38,8 @@ Donor.init(
     },
   },
   {
-    sequelize: db,
-    modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
-    underscored: true,
   }
 );
 
