@@ -1,18 +1,17 @@
-import db from '../lib/db.js';
 import { DataTypes } from 'sequelize';
+import db from '../lib/db.js';
 
-// Define the Donor model
 const Donor = db.define('Donor', {
   id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
+    type: DataTypes.INTEGER,
     primaryKey: true,
+    autoIncrement: true,
   },
-  firstName: {
+  first_name: {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  lastName: {
+  last_name: {
     type: DataTypes.STRING,
     allowNull: false,
   },
@@ -34,7 +33,15 @@ const Donor = db.define('Donor', {
   },
 }, {
   tableName: 'donors',
+  underscored: true,
   timestamps: true,
 });
+
+// Associations can be defined in a central place after all models are loaded.
+Donor.associate = (models) => {
+  if (models.Donation) {
+    Donor.hasMany(models.Donation, { foreignKey: 'donor_id', as: 'donations' });
+  }
+};
 
 export default Donor;
