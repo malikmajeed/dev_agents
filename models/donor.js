@@ -1,18 +1,7 @@
-import { DataTypes, Model } from 'sequelize';
-import db from '../lib/db.js';
+import { Model, DataTypes } from 'sequelize';
+import sequelize from '../lib/db.js';
 
-class Donor extends Model {
-  /**
-   * Define model associations.
-   * This method will be called from the central association loader (if any).
-   */
-  static associate(models) {
-    // A donor can have many donations (assuming a Donation model exists)
-    if (models.Donation) {
-      Donor.hasMany(models.Donation, { foreignKey: 'donor_id', as: 'donations' });
-    }
-  }
-}
+class Donor extends Model {}
 
 Donor.init(
   {
@@ -21,11 +10,11 @@ Donor.init(
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
-    first_name: {
+    firstName: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    last_name: {
+    lastName: {
       type: DataTypes.STRING,
       allowNull: false,
     },
@@ -47,12 +36,18 @@ Donor.init(
     },
   },
   {
-    sequelize: db,
+    sequelize,
     modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
-    underscored: true,
   }
 );
+
+// Define associations in a separate step after all models are loaded
+Donor.associate = (models) => {
+  if (models.Donation) {
+    Donor.hasMany(models.Donation, { foreignKey: 'donorId', as: 'donations' });
+  }
+};
 
 export default Donor;
