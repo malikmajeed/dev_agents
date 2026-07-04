@@ -1,9 +1,8 @@
 import { DataTypes } from 'sequelize';
-import sequelize from '../lib/db.js';
+import db from '../lib/db.js';
 
-// Donor model represents an individual who can make donations.
-// It stores basic contact information and will be linked to donation records.
-const Donor = sequelize.define(
+// Define the Donor model
+const Donor = db.define(
   'Donor',
   {
     id: {
@@ -23,7 +22,9 @@ const Donor = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      validate: { isEmail: true },
+      validate: {
+        isEmail: true,
+      },
     },
     phone: {
       type: DataTypes.STRING,
@@ -33,6 +34,11 @@ const Donor = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    totalDonated: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0.0,
+    },
   },
   {
     tableName: 'donors',
@@ -40,5 +46,12 @@ const Donor = sequelize.define(
     underscored: true,
   }
 );
+
+// Placeholder for future associations (e.g., Donation, Campaign)
+Donor.associate = (models) => {
+  if (models.Donation) {
+    Donor.hasMany(models.Donation, { foreignKey: 'donor_id', as: 'donations' });
+  }
+};
 
 export default Donor;
