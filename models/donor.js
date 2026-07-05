@@ -1,21 +1,32 @@
-import { DataTypes, UUIDV4 } from 'sequelize';
-import sequelize from '../lib/db.js';
+import { DataTypes, Model } from 'sequelize';
+import db from '../lib/db.js';
 
-// Define the Donor model
-const Donor = sequelize.define(
-  'Donor',
+class Donor extends Model {
+  /**
+   * Define model associations.
+   * This method will be called from the central model index after all models are loaded.
+   */
+  static associate(models) {
+    // A donor can have many donations
+    Donor.hasMany(models.Donation, {
+      foreignKey: 'donor_id',
+      as: 'donations',
+    });
+  }
+}
+
+Donor.init(
   {
     id: {
       type: DataTypes.UUID,
-      defaultValue: UUIDV4,
+      defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
-      allowNull: false,
     },
-    firstName: {
+    first_name: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    lastName: {
+    last_name: {
       type: DataTypes.STRING,
       allowNull: false,
     },
@@ -35,20 +46,14 @@ const Donor = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    // Timestamps are added automatically by Sequelize when `timestamps: true`
   },
   {
+    sequelize: db,
+    modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
     underscored: true,
   }
 );
-
-// Associations – will be called from a central model index after all models are loaded
-Donor.associate = (models) => {
-  if (models.Donation) {
-    Donor.hasMany(models.Donation, { foreignKey: 'donor_id', as: 'donations' });
-  }
-};
 
 export default Donor;
