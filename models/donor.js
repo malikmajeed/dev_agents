@@ -1,7 +1,7 @@
-import db from '../lib/db.js';
 import { DataTypes } from 'sequelize';
+import db from '../lib/db.js';
 
-// Donor model definition
+// Define the Donor model
 const Donor = db.define(
   'Donor',
   {
@@ -22,16 +22,8 @@ const Donor = db.define(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      validate: {
-        isEmail: true,
-      },
+      validate: { isEmail: true },
     },
-    // Store bcrypt hash of the password; actual hashing is handled in services
-    passwordHash: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    // Optional fields for future extensions
     phone: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -44,14 +36,11 @@ const Donor = db.define(
   {
     tableName: 'donors',
     timestamps: true,
-    // Ensure the model name is singular for association clarity
-    modelName: 'Donor',
   }
 );
 
-// Associations – will be called from a central association loader after all models are imported
+// Associations – will be called from a central model index after all models are loaded
 Donor.associate = (models) => {
-  // A donor can have many donation records (Donation model to be created later)
   if (models.Donation) {
     Donor.hasMany(models.Donation, { foreignKey: 'donorId', as: 'donations' });
   }
