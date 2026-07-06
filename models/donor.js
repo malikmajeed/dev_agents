@@ -1,14 +1,14 @@
+import db from '../lib/db.js';
 import { DataTypes } from 'sequelize';
-import sequelize from '../lib/db';
 
-// Define the Donor model representing a donor in the NGO system.
-const Donor = sequelize.define(
+// Donor model definition
+const Donor = db.define(
   'Donor',
   {
     id: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
-      autoIncrement: true,
     },
     firstName: {
       type: DataTypes.STRING,
@@ -22,8 +22,16 @@ const Donor = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      validate: { isEmail: true },
+      validate: {
+        isEmail: true,
+      },
     },
+    // Store bcrypt hash of the password; actual hashing is handled in services
+    passwordHash: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    // Optional fields for future extensions
     phone: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -36,11 +44,14 @@ const Donor = sequelize.define(
   {
     tableName: 'donors',
     timestamps: true,
+    // Ensure the model name is singular for association clarity
+    modelName: 'Donor',
   }
 );
 
-// Associations – a donor can have many donations.
+// Associations – will be called from a central association loader after all models are imported
 Donor.associate = (models) => {
+  // A donor can have many donation records (Donation model to be created later)
   if (models.Donation) {
     Donor.hasMany(models.Donation, { foreignKey: 'donorId', as: 'donations' });
   }
