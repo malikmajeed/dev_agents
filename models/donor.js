@@ -1,33 +1,14 @@
-import { DataTypes, Model } from "sequelize";
-import db from "../lib/db.js";
-import bcrypt from "bcryptjs";
+import { DataTypes } from 'sequelize';
+import sequelize from '../lib/db';
 
-class Donor extends Model {
-  /**
-   * Compare a plain password with the stored hash.
-   * @param {string} password
-   * @returns {Promise<boolean>}
-   */
-  async verifyPassword(password) {
-    if (!this.password) return false;
-    return bcrypt.compare(password, this.password);
-  }
-
-  /**
-   * Set a plain password; it will be hashed before persisting.
-   * @param {string} plainPassword
-   */
-  setPassword(plainPassword) {
-    this._plainPassword = plainPassword;
-  }
-}
-
-Donor.init(
+// Define the Donor model representing a donor in the NGO system.
+const Donor = sequelize.define(
+  'Donor',
   {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.INTEGER,
       primaryKey: true,
+      autoIncrement: true,
     },
     firstName: {
       type: DataTypes.STRING,
@@ -51,30 +32,18 @@ Donor.init(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    // Stores the bcrypt hash of the donor's password (if authentication is needed)
-    password: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
   },
   {
-    sequelize: db,
-    modelName: "Donor",
-    tableName: "donors",
+    tableName: 'donors',
     timestamps: true,
-    hooks: {
-      beforeCreate: async (donor) => {
-        if (donor._plainPassword) {
-          donor.password = await bcrypt.hash(donor._plainPassword, 10);
-        }
-      },
-      beforeUpdate: async (donor) => {
-        if (donor._plainPassword) {
-          donor.password = await bcrypt.hash(donor._plainPassword, 10);
-        }
-      },
-    },
   }
 );
+
+// Associations – a donor can have many donations.
+Donor.associate = (models) => {
+  if (models.Donation) {
+    Donor.hasMany(models.Donation, { foreignKey: 'donorId', as: 'donations' });
+  }
+};
 
 export default Donor;
