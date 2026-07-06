@@ -1,9 +1,25 @@
-import { DataTypes } from 'sequelize';
+import { DataTypes, Model } from 'sequelize';
 import db from '../lib/db.js';
 
-// Define the Donor model
-const Donor = db.define(
-  'Donor',
+class Donor extends Model {
+  static associate(models) {
+    // One donor can have many donations
+    if (models.Donation) {
+      Donor.hasMany(models.Donation, { foreignKey: 'donor_id', as: 'donations' });
+    }
+    // Donor can be linked to many campaigns through donations (many‑to‑many)
+    if (models.Campaign && models.Donation) {
+      Donor.belongsToMany(models.Campaign, {
+        through: models.Donation,
+        foreignKey: 'donor_id',
+        otherKey: 'campaign_id',
+        as: 'campaigns',
+      });
+    }
+  }
+}
+
+Donor.init(
   {
     id: {
       type: DataTypes.UUID,
@@ -13,10 +29,12 @@ const Donor = db.define(
     firstName: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: { notEmpty: true },
     },
     lastName: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: { notEmpty: true },
     },
     email: {
       type: DataTypes.STRING,
@@ -34,16 +52,12 @@ const Donor = db.define(
     },
   },
   {
+    sequelize: db,
+    modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
+    underscored: true,
   }
 );
-
-// Associations – will be called from a central model index after all models are loaded
-Donor.associate = (models) => {
-  if (models.Donation) {
-    Donor.hasMany(models.Donation, { foreignKey: 'donorId', as: 'donations' });
-  }
-};
 
 export default Donor;
