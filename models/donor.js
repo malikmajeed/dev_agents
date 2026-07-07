@@ -1,19 +1,12 @@
-import { DataTypes, Model } from 'sequelize';
-import db from '../lib/db.js';
-import bcrypt from 'bcryptjs';
+import { DataTypes } from 'sequelize';
+import { sequelize } from '../lib/db.js';
 
-class Donor extends Model {
-  /**
-   * Compare a plain text password with the stored hashed password.
-   * @param {string} password
-   * @returns {Promise<boolean>}
-   */
-  async validPassword(password) {
-    return bcrypt.compare(password, this.password);
-  }
-}
+// Donor model definition
+// Represents an individual who can make donations to the NGO.
+// Fields include basic contact information and timestamps.
 
-Donor.init(
+const Donor = sequelize.define(
+  'Donor',
   {
     id: {
       type: DataTypes.UUID,
@@ -32,11 +25,9 @@ Donor.init(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      validate: { isEmail: true },
-    },
-    password: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      validate: {
+        isEmail: true,
+      },
     },
     phone: {
       type: DataTypes.STRING,
@@ -48,25 +39,14 @@ Donor.init(
     },
   },
   {
-    sequelize: db,
-    modelName: 'Donor',
     tableName: 'donors',
     timestamps: true,
-    hooks: {
-      beforeCreate: async (donor) => {
-        if (donor.password) {
-          const salt = await bcrypt.genSalt(10);
-          donor.password = await bcrypt.hash(donor.password, salt);
-        }
-      },
-      beforeUpdate: async (donor) => {
-        if (donor.changed('password')) {
-          const salt = await bcrypt.genSalt(10);
-          donor.password = await bcrypt.hash(donor.password, salt);
-        }
-      },
-    },
+    underscored: true,
   }
 );
+
+// Define associations in a separate init step to avoid circular dependencies.
+// Example (when a Donation model exists):
+// Donor.hasMany(models.Donation, { foreignKey: 'donor_id', as: 'donations' });
 
 export default Donor;
