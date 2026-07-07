@@ -1,18 +1,16 @@
 import { DataTypes } from 'sequelize';
-import db from '../lib/db.js';
+import { sequelize } from '../lib/db';
 
 // Donor model definition
-// Represents an individual who can make donations. Includes basic contact information.
-// Associations (e.g., with a Donation model) are defined in a separate associate function
-// to avoid circular import issues.
-
-const Donor = db.define(
+// Represents an individual who can make donations to the NGO.
+// Fields are kept minimal for the core donor management feature.
+const Donor = sequelize.define(
   'Donor',
   {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.INTEGER,
       primaryKey: true,
+      autoIncrement: true,
     },
     firstName: {
       type: DataTypes.STRING,
@@ -38,21 +36,21 @@ const Donor = db.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    // Tracks the cumulative amount donated by this donor.
+    totalDonated: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      defaultValue: 0.0,
+    },
   },
   {
     tableName: 'donors',
     timestamps: true,
+    underscored: true,
   }
 );
 
-// Define associations in a separate function to be called after all models are loaded.
-Donor.associate = (models) => {
-  if (models.Donation) {
-    Donor.hasMany(models.Donation, {
-      foreignKey: 'donorId',
-      as: 'donations',
-    });
-  }
-};
+// Association placeholder – actual association is set in services or index file.
+// Example: Donor.hasMany(models.Donation, { foreignKey: 'donor_id' });
 
 export default Donor;
