@@ -1,10 +1,9 @@
 import { DataTypes } from 'sequelize';
-import { sequelize } from '../lib/db.js';
+import sequelize from '../lib/db.js';
 
 // Donor model definition
-// Represents an individual who can make donations to the NGO.
-// Fields include basic contact information and timestamps.
-
+// Represents an individual who can make donations. Includes basic contact
+// information and a hashed password for authentication (if needed).
 const Donor = sequelize.define(
   'Donor',
   {
@@ -25,9 +24,12 @@ const Donor = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      validate: {
-        isEmail: true,
-      },
+      validate: { isEmail: true },
+    },
+    // Store bcrypt hash of the donor's password (if donors log in).
+    passwordHash: {
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     phone: {
       type: DataTypes.STRING,
@@ -41,11 +43,12 @@ const Donor = sequelize.define(
   {
     tableName: 'donors',
     timestamps: true,
+    // Ensure the model uses underscored column names to match typical DB style.
     underscored: true,
   }
 );
 
-// Define associations in a separate init step to avoid circular dependencies.
+// Associations can be defined later after all models are loaded.
 // Example (when a Donation model exists):
 // Donor.hasMany(models.Donation, { foreignKey: 'donor_id', as: 'donations' });
 
