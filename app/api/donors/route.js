@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
+import * as donorService from '@/services/donorService';
 import { z } from 'zod';
-import { getAllDonors, createDonor } from '@/services/donorService';
 
 // Validation schema for creating a donor
 const donorSchema = z.object({
@@ -16,10 +16,10 @@ const donorSchema = z.object({
  */
 export async function GET(request) {
   try {
-    const donors = await getAllDonors();
+    const donors = await donorService.getAllDonors();
     return NextResponse.json(donors);
   } catch (error) {
-    console.error('GET /api/donors error:', error);
+    console.error('Error fetching donors:', error);
     return NextResponse.json(
       { error: 'Failed to fetch donors' },
       { status: 500 }
@@ -30,26 +30,27 @@ export async function GET(request) {
 /**
  * POST /api/donors
  * Creates a new donor record.
+ * Expected body: { name, email, phone?, address? }
  */
 export async function POST(request) {
   try {
     const body = await request.json();
-    const parsed = donorSchema.safeParse(body);
+    const validation = donorSchema.safeParse(body);
 
-    if (!parsed.success) {
+    if (!validation.success) {
       return NextResponse.json(
         {
           error: 'Invalid request data',
-          details: parsed.error.format(),
+          details: validation.error.errors,
         },
         { status: 400 }
       );
     }
 
-    const newDonor = await createDonor(parsed.data);
+    const newDonor = await donorService.createDonor(validation.data);
     return NextResponse.json(newDonor, { status: 201 });
   } catch (error) {
-    console.error('POST /api/donors error:', error);
+    console.error('Error creating donor:', error);
     return NextResponse.json(
       { error: 'Failed to create donor' },
       { status: 500 }
