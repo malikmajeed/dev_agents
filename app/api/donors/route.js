@@ -1,12 +1,13 @@
-import { getAllDonors, createDonor } from '@/services/donorService';
+import { NextResponse } from 'next/server';
+import { createDonor, getAllDonors } from '@/services/donorService';
 import { z } from 'zod';
 
 // Validation schema for creating a donor
-const donorCreateSchema = z.object({
+const donorSchema = z.object({
   name: z.string().min(1, { message: 'Name is required' }),
   email: z.string().email({ message: 'Invalid email address' }),
   phone: z.string().optional(),
-  address: z.string().optional()
+  address: z.string().optional(),
 });
 
 /**
@@ -16,46 +17,43 @@ const donorCreateSchema = z.object({
 export async function GET(request) {
   try {
     const donors = await getAllDonors();
-    return new Response(JSON.stringify({ success: true, data: donors }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return NextResponse.json({ success: true, data: donors });
   } catch (error) {
     console.error('Error fetching donors:', error);
-    return new Response(JSON.stringify({ success: false, error: 'Failed to fetch donors' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch donors' },
+      { status: 500 }
+    );
   }
 }
 
 /**
  * POST /api/donors
  * Creates a new donor record.
- * Expected JSON body: { name, email, phone?, address? }
  */
 export async function POST(request) {
   try {
     const body = await request.json();
-    const parsed = donorCreateSchema.safeParse(body);
-    if (!parsed.success) {
-      const errors = parsed.error.format();
-      return new Response(JSON.stringify({ success: false, errors }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+    const validation = donorSchema.safeParse(body);
+
+    if (!validation.success) {
+      const errors = validation.error.errors.map((e) => ({
+        path: e.path,
+        message: e.message,
+      }));
+      return NextResponse.json(
+        { success: false, error: 'Validation failed', details: errors },
+        { status: 400 }
+      );
     }
 
-    const newDonor = await createDonor(parsed.data);
-    return new Response(JSON.stringify({ success: true, data: newDonor }), {
-      status: 201,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const donor = await createDonor(validation.data);
+    return NextResponse.json({ success: true, data: donor }, { status: 201 });
   } catch (error) {
     console.error('Error creating donor:', error);
-    return new Response(JSON.stringify({ success: false, error: 'Failed to create donor' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return NextResponse.json(
+      { success: false, error: 'Failed to create donor' },
+      { status: 500 }
+    );
   }
 }
