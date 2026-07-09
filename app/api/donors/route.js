@@ -1,44 +1,49 @@
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { getAllDonors, createDonor } from '@/services/donorService';
+import { z } from 'zod';
+import donorService from '@/services/donorService';
 
-const JWT_SECRET = process.env.JWT_SECRET;
+// Zod schema for donor creation
+const createDonorSchema = z.object({
+  name: z.string().min(1, { message: 'Name is required' }),
+  email: z.string().email({ message: 'Invalid email address' }),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  // Additional fields can be added as needed
+});
 
-function verifyToken(req) {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader) {
-    throw new Error('Missing Authorization header');
-  }
-  const token = authHeader.split(' ')[1];
-  if (!token) {
-    throw new Error('Invalid Authorization header');
-  }
+/**
+ * GET /api/donors
+ * Returns a list of all donors.
+ */
+export async function GET() {
   try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (err) {
-    throw new Error('Invalid token');
-  }
-}
-
-export async function GET(req) {
-  try {
-    verifyToken(req);
-    const donors = await getAllDonors();
+    const donors = await donorService.getAllDonors();
     return NextResponse.json(donors);
-  } catch (err) {
-    const status = err.message.includes('Authorization') || err.message.includes('token') ? 401 : 500;
-    return NextResponse.json({ error: err.message }, { status });
+  } catch (error) {
+    console.error('Error fetching donors:', error);
+    return NextResponse.json({ error: 'Failed to fetch donors' }, { status: 500 });
   }
 }
 
-export async function POST(req) {
+/**
+ * POST /api/donors
+ * Creates a new donor.
+ * Expected body: { name, email, phone?, address? }
+ */
+export async function POST(request) {
   try {
-    verifyToken(req);
-    const body = await req.json();
-    const newDonor = await createDonor(body);
+    const body = await request.json();
+    const parsed = createDonorSchema.safeParse(body);
+
+    if (!parsed.success) {
+      const errors = parsed.error.errors.map((e) => ({ path: e.path, message: e.message }));
+      return NextResponse.json({ error: 'Validation failed', details: errors }, { status: 400 });
+    }
+
+    const newDonor = await donorService.createDonor(parsed.data);
     return NextResponse.json(newDonor, { status: 201 });
-  } catch (err) {
-    const status = err.message.includes('validation') ? 400 : 401;
-    return NextResponse.json({ error: err.message }, { status });
+  } catch (error) {
+    console.error('Error creating donor:', error);
+    return NextResponse.json({ error: 'Failed to create donor' }, { status: 500 });
   }
 }
