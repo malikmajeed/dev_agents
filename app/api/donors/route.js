@@ -1,63 +1,76 @@
-import { NextResponse } from 'next/server';
+import { getAllDonors, createDonor } from '@/services/donorService';
 import jwt from 'jsonwebtoken';
-import { createDonor, getAllDonors } from '../../../services/donorService';
 import { z } from 'zod';
 
 // Zod schema for donor creation
 const donorSchema = z.object({
   name: z.string().min(1, { message: 'Name is required' }),
   email: z.string().email({ message: 'Invalid email address' }),
-  phone: z.string().optional(),
-  address: z.string().optional(),
+  amount: z.number().positive({ message: 'Amount must be positive' }),
+  causeId: z.number().int().positive({ message: 'Cause ID must be a positive integer' })
 });
 
-// Helper to extract Bearer token from Authorization header
-function getToken(request) {
-  const authHeader = request.headers.get('authorization');
+/**
+ * Verify JWT from Authorization header and return payload.
+ * Throws on missing/invalid token.
+ */
+function verifyAuth(req) {
+  const authHeader = req.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new jwt.JsonWebTokenError('Authorization token missing');
+    throw new Error('Missing or malformed Authorization header');
   }
-  return authHeader.split(' ')[1];
-}
-
-// Verify JWT token using secret from env
-function verifyToken(token) {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error('JWT_SECRET is not defined in environment');
-  }
-  // jwt.verify throws on invalid token
-  return jwt.verify(token, secret);
-}
-
-export async function GET(request) {
+  const token = authHeader.split(' ')[1];
   try {
-    const token = getToken(request);
-    verifyToken(token);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    return payload;
+  } catch (err) {
+    throw new Error('Invalid token');
+  }
+}
+
+export async function GET(req) {
+  try {
+    // Auth check – only admins can list donors
+    verifyAuth(req);
 
     const donors = await getAllDonors();
-    return NextResponse.json(donors, { status: 200 });
-  } catch (error) {
-    const status = error instanceof jwt.JsonWebTokenError ? 401 : 500;
-    return NextResponse.json({ error: error.message }, { status });
+    return new Response(JSON.stringify(donors), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    const status = err.message.includes('Authorization') || err.message.includes('token') ? 401 : 500;
+    return new Response(JSON.stringify({ error: err.message }), {
+      status,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 
-export async function POST(request) {
+export async function POST(req) {
   try {
-    const token = getToken(request);
-    verifyToken(token);
+    // Auth check – only admins can create donors
+    verifyAuth(req);
 
-    const body = await request.json();
-    const validatedData = donorSchema.parse(body);
+    const body = await req.json();
+    const parsed = donorSchema.parse(body);
 
-    const newDonor = await createDonor(validatedData);
-    return NextResponse.json(newDonor, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+    const newDonor = await createDonor(parsed);
+    return new Response(JSON.stringify(newDonor), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return new Response(JSON.stringify({ errors: err.errors }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
-    const status = error instanceof jwt.JsonWebTokenError ? 401 : 500;
-    return NextResponse.json({ error: error.message }, { status });
+    const status = err.message.includes('Authorization') || err.message.includes('token') ? 401 : 500;
+    return new Response(JSON.stringify({ error: err.message }), {
+      status,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
