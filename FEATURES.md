@@ -5,7 +5,7 @@
 **Priority:** high  
 **Sub-tasks:**
 - [x] Database: `models/donor.js`
-- [p] API: `app/api/donors/route.js`
+- [x] API: `app/api/donors/route.js`
 - [ ] UI: `app/admin/donors/page.js`
 - [ ] Integration: `services/donorService.js` (hooks `hooks/useDonors.js` and controller wiring)
 
