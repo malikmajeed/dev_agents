@@ -1,22 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verify } from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
-import * as donorService from '@/services/donorService';
-
-// JWT verification helper
-function getUserFromToken(request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-  const token = authHeader.split(' ')[1];
-  try {
-    const payload = verify(token, process.env.JWT_SECRET);
-    return payload; // payload can contain user id, role, etc.
-  } catch (err) {
-    return null;
-  }
-}
+import { getAllDonors, createDonor } from '../../../services/donorService';
 
 // Zod schema for donor creation
 const donorSchema = z.object({
@@ -26,40 +11,52 @@ const donorSchema = z.object({
   address: z.string().optional(),
 });
 
-export async function GET(request) {
-  // Authenticate
-  const user = getUserFromToken(request);
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+// Helper to verify JWT and extract payload
+function verifyAuth(request) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw { status: 401, message: 'Missing or malformed Authorization header' };
   }
-
+  const token = authHeader.split(' ')[1];
   try {
-    const donors = await donorService.getAllDonors();
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    return payload;
+  } catch (err) {
+    throw { status: 401, message: 'Invalid or expired token' };
+  }
+}
+
+export async function GET(request) {
+  try {
+    // Ensure the request is authenticated
+    verifyAuth(request);
+
+    const donors = await getAllDonors();
     return NextResponse.json(donors, { status: 200 });
-  } catch (error) {
-    console.error('Error fetching donors:', error);
-    return NextResponse.json({ error: 'Failed to fetch donors' }, { status: 500 });
+  } catch (err) {
+    const status = err.status || 500;
+    const message = err.message || 'Internal Server Error';
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
 export async function POST(request) {
-  // Authenticate
-  const user = getUserFromToken(request);
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    // Authenticate admin/staff
+    verifyAuth(request);
+
     const body = await request.json();
     const parsed = donorSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid request data', details: parsed.error.format() }, { status: 400 });
+      const errors = parsed.error.format();
+      return NextResponse.json({ error: 'Validation failed', details: errors }, { status: 400 });
     }
 
-    const newDonor = await donorService.createDonor(parsed.data);
+    const newDonor = await createDonor(parsed.data);
     return NextResponse.json(newDonor, { status: 201 });
-  } catch (error) {
-    console.error('Error creating donor:', error);
-    return NextResponse.json({ error: 'Failed to create donor' }, { status: 500 });
+  } catch (err) {
+    const status = err.status || 500;
+    const message = err.message || 'Internal Server Error';
+    return NextResponse.json({ error: message }, { status });
   }
 }
