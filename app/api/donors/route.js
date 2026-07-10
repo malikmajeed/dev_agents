@@ -1,5 +1,4 @@
-import { NextResponse } from 'next/server';
-import { getAllDonors, createDonor } from '@/services/donorService';
+import { getAllDonors, createDonor } from '../../services/donorService.js';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 
@@ -11,58 +10,68 @@ const donorSchema = z.object({
   address: z.string().optional(),
 });
 
-// Helper to extract and verify JWT token
-function getToken(request) {
+/**
+ * Verify JWT from Authorization header.
+ * Throws an error if token is missing or invalid.
+ */
+function verifyAuth(request) {
   const authHeader = request.headers.get('authorization');
-  if (!authHeader) return null;
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
-  return parts[1];
-}
-
-function verifyToken(token) {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error('Missing or invalid Authorization header');
+  }
+  const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded;
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    return payload;
   } catch (err) {
-    return null;
+    throw new Error('Invalid token');
   }
 }
 
 export async function GET(request) {
-  // Authentication
-  const token = getToken(request);
-  if (!token || !verifyToken(token)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    // Ensure the request is authenticated
+    verifyAuth(request);
+
     const donors = await getAllDonors();
-    return NextResponse.json(donors);
-  } catch (error) {
-    console.error('Error fetching donors:', error);
-    return NextResponse.json({ error: 'Failed to fetch donors' }, { status: 500 });
+    return new Response(JSON.stringify({ donors }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    const status = err.message.includes('Authorization') ? 401 : 500;
+    return new Response(JSON.stringify({ error: err.message }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
 
 export async function POST(request) {
-  // Authentication
-  const token = getToken(request);
-  if (!token || !verifyToken(token)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
-    const body = await request.json();
-    const parsed = donorSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid request data', details: parsed.error.format() }, { status: 400 });
-    }
+    // Authentication
+    verifyAuth(request);
 
-    const newDonor = await createDonor(parsed.data);
-    return NextResponse.json(newDonor, { status: 201 });
-  } catch (error) {
-    console.error('Error creating donor:', error);
-    return NextResponse.json({ error: 'Failed to create donor' }, { status: 500 });
+    const body = await request.json();
+    const validated = donorSchema.parse(body);
+
+    const donor = await createDonor(validated);
+    return new Response(JSON.stringify({ donor }), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    // Zod validation errors
+    if (err instanceof z.ZodError) {
+      return new Response(JSON.stringify({ errors: err.errors }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const status = err.message.includes('Authorization') ? 401 : 500;
+    return new Response(JSON.stringify({ error: err.message }), {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
