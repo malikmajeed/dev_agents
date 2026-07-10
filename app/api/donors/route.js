@@ -3,62 +3,50 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { getAllDonors, createDonor } from '@/services/donorService';
 
-// Zod schema for donor creation
+const JWT_SECRET = process.env.JWT_SECRET;
+
+function verifyAuth(req) {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error('Missing or invalid Authorization header');
+  }
+  const token = authHeader.split(' ')[1];
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    throw new Error('Invalid token');
+  }
+}
+
 const donorSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email'),
+  name: z.string().min(1, { message: 'Name is required' }),
+  email: z.string().email({ message: 'Invalid email address' }),
   phone: z.string().optional(),
   address: z.string().optional(),
 });
 
-/**
- * Extract and verify JWT token from Authorization header.
- * Returns the decoded payload if valid, otherwise throws an error.
- */
-function verifyAuth(request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader) {
-    throw new Error('Missing Authorization header');
-  }
-  const [scheme, token] = authHeader.split(' ');
-  if (scheme !== 'Bearer' || !token) {
-    throw new Error('Invalid Authorization format');
-  }
+export async function GET(req) {
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded;
-  } catch (err) {
-    throw new Error('Invalid or expired token');
-  }
-}
-
-export async function GET(request) {
-  try {
-    // Ensure the request is authenticated (admin access)
-    verifyAuth(request);
-
+    verifyAuth(req);
     const donors = await getAllDonors();
-    return NextResponse.json(donors);
+    return NextResponse.json({ donors }, { status: 200 });
   } catch (error) {
     const status = error.message.includes('Authorization') ? 401 : 500;
     return NextResponse.json({ error: error.message }, { status });
   }
 }
 
-export async function POST(request) {
+export async function POST(req) {
   try {
-    // Authenticate admin
-    verifyAuth(request);
-
-    const body = await request.json();
-    const parsed = donorSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.errors.map(e => e.message).join(', ') }, { status: 400 });
-    }
-
-    const newDonor = await createDonor(parsed.data);
-    return NextResponse.json(newDonor, { status: 201 });
+    verifyAuth(req);
+    const body = await req.json();
+    const parsed = donorSchema.parse(body);
+    const donor = await createDonor(parsed);
+    return NextResponse.json({ donor }, { status: 201 });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 });
+    }
     const status = error.message.includes('Authorization') ? 401 : 500;
     return NextResponse.json({ error: error.message }, { status });
   }
