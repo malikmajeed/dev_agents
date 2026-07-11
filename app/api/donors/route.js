@@ -1,75 +1,60 @@
 import { NextResponse } from 'next/server';
-import { getAllDonors, createDonor } from '@/services/donorService';
-import { z } from 'zod';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
+import { getAllDonors, createDonor } from '@/services/donorService';
 
-// Helper to verify JWT and return payload
-function verifyAuth(request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader) {
-    throw new Error('Missing Authorization header');
+// Zod schema for creating a donor
+const createDonorSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email address'),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  // additional fields can be added as needed
+});
+
+// Helper to verify JWT and extract payload
+function verifyAuth(req) {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error('Missing or malformed Authorization header');
   }
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    throw new Error('Invalid Authorization format');
-  }
-  const token = parts[1];
+  const token = authHeader.split(' ')[1];
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    return payload;
+    return payload; // payload can be used for role checks if needed
   } catch (err) {
-    // Re‑throw to be caught in the route handler
-    throw err;
+    throw new Error('Invalid or expired token');
   }
 }
 
-/**
- * GET /api/donors
- * Returns a list of all donors. Protected – requires a valid JWT.
- */
-export async function GET(request) {
+export async function GET(req) {
   try {
-    // Auth check
-    verifyAuth(request);
+    // Authenticate request
+    verifyAuth(req);
 
     const donors = await getAllDonors();
-    return NextResponse.json(donors);
+    return NextResponse.json(donors, { status: 200 });
   } catch (error) {
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
-    }
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    const status = error.message.includes('Authorization') ? 401 : 500;
+    return NextResponse.json({ error: error.message }, { status });
   }
 }
 
-/**
- * POST /api/donors
- * Creates a new donor record. Protected – requires a valid JWT.
- * Expected body: { name, email, phone?, address? }
- */
-export async function POST(request) {
+export async function POST(req) {
   try {
-    // Auth check
-    verifyAuth(request);
+    // Authenticate request
+    verifyAuth(req);
 
-    const body = await request.json();
-    const donorSchema = z.object({
-      name: z.string().min(1, 'Name is required'),
-      email: z.string().email('Invalid email address'),
-      phone: z.string().optional(),
-      address: z.string().optional()
-    });
-    const validatedData = donorSchema.parse(body);
+    const body = await req.json();
+    const parsed = createDonorSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.errors }, { status: 400 });
+    }
 
-    const newDonor = await createDonor(validatedData);
+    const newDonor = await createDonor(parsed.data);
     return NextResponse.json(newDonor, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
-    }
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
-    }
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    const status = error.message.includes('Authorization') ? 401 : 500;
+    return NextResponse.json({ error: error.message }, { status });
   }
 }
