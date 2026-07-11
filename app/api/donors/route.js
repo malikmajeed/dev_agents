@@ -1,53 +1,66 @@
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { getAllDonors, createDonor } from '@/services/donorService';
+import { verify } from 'jsonwebtoken';
 import { z } from 'zod';
+import donorService from '@/services/donorService';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
-function verifyToken(request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new Error('Missing token');
-  }
-  const token = authHeader.split(' ')[1];
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (err) {
-    throw new Error('Invalid token');
-  }
-}
-
-const donorCreateSchema = z.object({
+// Validation schema for creating a donor
+const createDonorSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   phone: z.string().optional(),
   address: z.string().optional(),
+  // password is stored hashed; donors may have an account
+  password: z.string().min(6).optional(),
 });
 
-export async function GET(request) {
+// Helper to verify JWT and extract payload
+function verifyAuth(request) {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authHeader.split(' ')[1];
   try {
-    verifyToken(request);
-    const donors = await getAllDonors();
-    return NextResponse.json({ donors }, { status: 200 });
+    const payload = verify(token, process.env.JWT_SECRET);
+    return payload;
   } catch (err) {
-    const status = err.message === 'Missing token' || err.message === 'Invalid token' ? 401 : 500;
-    return NextResponse.json({ error: err.message }, { status });
+    return null;
+  }
+}
+
+export async function GET(request) {
+  // Only admins can list donors; verify token
+  const user = verifyAuth(request);
+  if (!user || !user.role || user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const donors = await donorService.getAllDonors();
+    return NextResponse.json(donors);
+  } catch (error) {
+    console.error('Error fetching donors:', error);
+    return NextResponse.json({ error: 'Failed to fetch donors' }, { status: 500 });
   }
 }
 
 export async function POST(request) {
+  // Only admins can create donors; verify token
+  const user = verifyAuth(request);
+  if (!user || !user.role || user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    verifyToken(request);
     const body = await request.json();
-    const parsed = donorCreateSchema.parse(body);
-    const donor = await createDonor(parsed);
-    return NextResponse.json({ donor }, { status: 201 });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors }, { status: 400 });
+    const parsed = createDonorSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request body', details: parsed.error.format() }, { status: 400 });
     }
-    const status = err.message === 'Missing token' || err.message === 'Invalid token' ? 401 : 500;
-    return NextResponse.json({ error: err.message }, { status });
+    const newDonor = await donorService.createDonor(parsed.data);
+    return NextResponse.json(newDonor, { status: 201 });
+  } catch (error) {
+    console.error('Error creating donor:', error);
+    return NextResponse.json({ error: 'Failed to create donor' }, { status: 500 });
   }
 }
