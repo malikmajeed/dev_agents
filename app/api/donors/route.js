@@ -1,21 +1,18 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import { getAllDonors, createDonor } from '../../services/donorService';
 import { z } from 'zod';
+import donorService from '@/services/donorService';
 
-// Validation schema for creating a donor
-const donorSchema = z.object({
-  name: z.string().min(1, { message: 'Name is required' }),
-  email: z.string().email({ message: 'Invalid email address' }),
+// Zod schema for creating a donor
+const createDonorSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
   phone: z.string().optional(),
   address: z.string().optional(),
 });
 
-/**
- * Verify JWT token from Authorization header.
- * Throws an error if token is missing or invalid.
- */
-function verifyToken(request) {
+// Helper to verify JWT and extract payload
+function verifyAuth(request) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw new Error('Missing or malformed Authorization header');
@@ -25,38 +22,35 @@ function verifyToken(request) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     return payload;
   } catch (err) {
-    throw new Error('Invalid token');
+    throw new Error('Invalid or expired token');
   }
 }
 
 export async function GET(request) {
   try {
-    // Ensure request is authenticated
-    verifyToken(request);
-
-    const donors = await getAllDonors();
+    // Optional: protect the route – only admins can list donors
+    verifyAuth(request);
+    const donors = await donorService.getAllDonors();
     return NextResponse.json(donors);
-  } catch (err) {
-    const status = err.message.includes('Authorization') || err.message.includes('Invalid token') ? 401 : 500;
-    return NextResponse.json({ error: err.message }, { status });
+  } catch (error) {
+    const status = error.message.includes('Authorization') ? 401 : 500;
+    return NextResponse.json({ error: error.message }, { status });
   }
 }
 
 export async function POST(request) {
   try {
-    // Authentication
-    verifyToken(request);
-
+    // Protect route – only authenticated admins can create donors
+    verifyAuth(request);
     const body = await request.json();
-    const validated = donorSchema.parse(body);
-
-    const newDonor = await createDonor(validated);
+    const parsed = createDonorSchema.parse(body);
+    const newDonor = await donorService.createDonor(parsed);
     return NextResponse.json(newDonor, { status: 201 });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: err.errors }, { status: 400 });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 });
     }
-    const status = err.message.includes('Authorization') || err.message.includes('Invalid token') ? 401 : 500;
-    return NextResponse.json({ error: err.message }, { status });
+    const status = error.message.includes('Authorization') ? 401 : 500;
+    return NextResponse.json({ error: error.message }, { status });
   }
 }
