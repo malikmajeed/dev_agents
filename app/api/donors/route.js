@@ -1,60 +1,62 @@
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { verify } from 'jsonwebtoken';
 import { z } from 'zod';
-import { getAllDonors, createDonor } from '@/services/donorService';
+import donorService from '../../services/donorService.js';
 
 // Zod schema for creating a donor
 const createDonorSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email address'),
+  name: z.string().min(1, { message: 'Name is required' }),
+  email: z.string().email({ message: 'Invalid email address' }),
   phone: z.string().optional(),
   address: z.string().optional(),
-  // additional fields can be added as needed
 });
 
-// Helper to verify JWT and extract payload
-function verifyAuth(req) {
-  const authHeader = req.headers.get('authorization');
+/**
+ * Verify JWT token from Authorization header.
+ * Throws an error if token is missing or invalid.
+ */
+async function authenticate(request) {
+  const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new Error('Missing or malformed Authorization header');
+    throw { status: 401, message: 'Missing or malformed Authorization header' };
   }
   const token = authHeader.split(' ')[1];
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    return payload; // payload can be used for role checks if needed
+    const payload = verify(token, process.env.JWT_SECRET);
+    return payload; // payload can be used later if needed
   } catch (err) {
-    throw new Error('Invalid or expired token');
+    throw { status: 401, message: 'Invalid or expired token' };
   }
 }
 
-export async function GET(req) {
+export async function GET(request) {
   try {
-    // Authenticate request
-    verifyAuth(req);
-
-    const donors = await getAllDonors();
-    return NextResponse.json(donors, { status: 200 });
-  } catch (error) {
-    const status = error.message.includes('Authorization') ? 401 : 500;
-    return NextResponse.json({ error: error.message }, { status });
+    await authenticate(request);
+    const donors = await donorService.getAllDonors();
+    return NextResponse.json({ donors }, { status: 200 });
+  } catch (err) {
+    const status = err.status || 500;
+    const message = err.message || 'Internal Server Error';
+    return NextResponse.json({ error: message }, { status });
   }
 }
 
-export async function POST(req) {
+export async function POST(request) {
   try {
-    // Authenticate request
-    verifyAuth(req);
-
-    const body = await req.json();
+    await authenticate(request);
+    const body = await request.json();
     const parsed = createDonorSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.errors }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Validation failed', details: parsed.error.format() },
+        { status: 400 }
+      );
     }
-
-    const newDonor = await createDonor(parsed.data);
-    return NextResponse.json(newDonor, { status: 201 });
-  } catch (error) {
-    const status = error.message.includes('Authorization') ? 401 : 500;
-    return NextResponse.json({ error: error.message }, { status });
+    const newDonor = await donorService.createDonor(parsed.data);
+    return NextResponse.json({ donor: newDonor }, { status: 201 });
+  } catch (err) {
+    const status = err.status || 500;
+    const message = err.message || 'Internal Server Error';
+    return NextResponse.json({ error: message }, { status });
   }
 }
