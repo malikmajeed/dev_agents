@@ -1,18 +1,26 @@
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import { getAllDonors, createDonor } from '@/services/donorService';
+import { verify } from 'jsonwebtoken';
+import { createDonor, getAllDonors } from '../../../services/donorService.js';
 import { z } from 'zod';
 
-const JWT_SECRET = process.env.JWT_SECRET;
+// Zod schema for donor creation
+const donorSchema = z.object({
+  name: z.string().min(1, { message: 'Name is required' }),
+  email: z.string().email({ message: 'Invalid email address' }),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+});
 
-function verifyAuth(request) {
+// Helper to verify JWT and return payload or throw
+function verifyToken(request) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw { status: 401, message: 'Missing or malformed Authorization header' };
   }
   const token = authHeader.split(' ')[1];
   try {
-    return jwt.verify(token, JWT_SECRET);
+    const payload = verify(token, process.env.JWT_SECRET);
+    return payload;
   } catch (err) {
     throw { status: 401, message: 'Invalid or expired token' };
   }
@@ -20,35 +28,35 @@ function verifyAuth(request) {
 
 export async function GET(request) {
   try {
-    verifyAuth(request);
+    // Verify admin token (or any authenticated user)
+    verifyToken(request);
+
     const donors = await getAllDonors();
-    return NextResponse.json({ donors });
-  } catch (error) {
-    const status = error.status || 500;
-    const message = error.message || 'Internal Server Error';
+    return NextResponse.json(donors);
+  } catch (err) {
+    const status = err.status || 500;
+    const message = err.message || 'Internal Server Error';
     return NextResponse.json({ error: message }, { status });
   }
 }
 
 export async function POST(request) {
   try {
-    verifyAuth(request);
+    // Verify admin token
+    verifyToken(request);
+
     const body = await request.json();
-    const donorSchema = z.object({
-      name: z.string().min(1),
-      email: z.string().email(),
-      phone: z.string().optional(),
-      address: z.string().optional()
-    });
-    const parsedData = donorSchema.parse(body);
-    const donor = await createDonor(parsedData);
-    return NextResponse.json({ donor }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+    const parsed = donorSchema.safeParse(body);
+    if (!parsed.success) {
+      const errors = parsed.error.format();
+      return NextResponse.json({ error: 'Validation failed', details: errors }, { status: 400 });
     }
-    const status = error.status || 500;
-    const message = error.message || 'Internal Server Error';
+
+    const newDonor = await createDonor(parsed.data);
+    return NextResponse.json(newDonor, { status: 201 });
+  } catch (err) {
+    const status = err.status || 500;
+    const message = err.message || 'Internal Server Error';
     return NextResponse.json({ error: message }, { status });
   }
 }
