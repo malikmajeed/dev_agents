@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { createDonor, getAllDonors } from '@/services/donorService';
 import { z } from 'zod';
-import donorService from '@/services/donorService';
+import jwt from 'jsonwebtoken';
 
-// Zod schema for creating a donor
-const createDonorSchema = z.object({
-  name: z.string().min(1),
-  email: z.string().email(),
+// Zod schema for donor creation
+const donorSchema = z.object({
+  name: z.string().min(1, { message: 'Name is required' }),
+  email: z.string().email({ message: 'Invalid email address' }),
   phone: z.string().optional(),
   address: z.string().optional(),
 });
 
-// Helper to verify JWT and extract payload
+/**
+ * Verify JWT token from Authorization header.
+ * Returns the decoded payload if valid, otherwise throws.
+ */
 function verifyAuth(request) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -19,8 +22,8 @@ function verifyAuth(request) {
   }
   const token = authHeader.split(' ')[1];
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    return payload;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded;
   } catch (err) {
     throw new Error('Invalid or expired token');
   }
@@ -28,10 +31,11 @@ function verifyAuth(request) {
 
 export async function GET(request) {
   try {
-    // Optional: protect the route – only admins can list donors
+    // Authenticate admin user
     verifyAuth(request);
-    const donors = await donorService.getAllDonors();
-    return NextResponse.json(donors);
+
+    const donors = await getAllDonors();
+    return NextResponse.json({ donors }, { status: 200 });
   } catch (error) {
     const status = error.message.includes('Authorization') ? 401 : 500;
     return NextResponse.json({ error: error.message }, { status });
@@ -40,17 +44,19 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    // Protect route – only authenticated admins can create donors
-    verifyAuth(request);
     const body = await request.json();
-    const parsed = createDonorSchema.parse(body);
-    const newDonor = await donorService.createDonor(parsed);
-    return NextResponse.json(newDonor, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+    const parsed = donorSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: parsed.error.format() },
+        { status: 400 }
+      );
     }
-    const status = error.message.includes('Authorization') ? 401 : 500;
-    return NextResponse.json({ error: error.message }, { status });
+
+    const newDonor = await createDonor(parsed.data);
+    return NextResponse.json({ donor: newDonor }, { status: 201 });
+  } catch (error) {
+    console.error('Error in POST /api/donors:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
