@@ -1,20 +1,17 @@
 import { NextResponse } from 'next/server';
-import { createDonor, getAllDonors } from '@/services/donorService';
-import { z } from 'zod';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
+import { getAllDonors, createDonor } from '@/services/donorService';
 
 // Zod schema for donor creation
 const donorSchema = z.object({
-  name: z.string().min(1, { message: 'Name is required' }),
-  email: z.string().email({ message: 'Invalid email address' }),
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email address'),
   phone: z.string().optional(),
   address: z.string().optional(),
 });
 
-/**
- * Verify JWT token from Authorization header.
- * Returns the decoded payload if valid, otherwise throws.
- */
+// Helper to verify JWT token
 function verifyAuth(request) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -23,7 +20,7 @@ function verifyAuth(request) {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return decoded;
+    return decoded; // payload can be used later if needed
   } catch (err) {
     throw new Error('Invalid or expired token');
   }
@@ -31,7 +28,7 @@ function verifyAuth(request) {
 
 export async function GET(request) {
   try {
-    // Authenticate admin user
+    // Authenticate admin/staff
     verifyAuth(request);
 
     const donors = await getAllDonors();
@@ -44,19 +41,19 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    // Authenticate admin/staff
+    verifyAuth(request);
+
     const body = await request.json();
     const parsed = donorSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: parsed.error.format() },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.errors }, { status: 400 });
     }
 
     const newDonor = await createDonor(parsed.data);
     return NextResponse.json({ donor: newDonor }, { status: 201 });
   } catch (error) {
-    console.error('Error in POST /api/donors:', error);
-    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+    const status = error.message.includes('Authorization') ? 401 : 500;
+    return NextResponse.json({ error: error.message }, { status });
   }
 }
