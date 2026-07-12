@@ -1,61 +1,62 @@
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
+import { verify } from 'jsonwebtoken';
 import { z } from 'zod';
-import { getAllDonors, createDonor } from '@/services/donorService';
+import { createDonor, getAllDonors } from '../../services/donorService.js';
 
-// Validation schema for creating a donor
-const donorSchema = z.object({
-  name: z.string().min(1, { message: 'Name is required' }),
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
-  address: z.string().optional(),
-  phone: z.string().optional(),
+// Zod schema for donor creation (public donation)
+const donorCreateSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email'),
+  amount: z.number().positive('Amount must be positive'),
+  causeId: z.number().int().positive('Cause ID must be a positive integer'),
+  message: z.string().optional(),
 });
 
-// Helper to extract Bearer token from Authorization header
-function getToken(req) {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader) return null;
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') return null;
-  return parts[1];
-}
-
-export async function GET(req) {
+/**
+ * GET /api/donors
+ * Returns list of all donors (admin only)
+ */
+export async function GET(request) {
   try {
-    const token = getToken(req);
-    if (!token) {
-      return NextResponse.json({ error: 'Missing or malformed token' }, { status: 401 });
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Missing or malformed Authorization header' }, { status: 401 });
     }
+    const token = authHeader.split(' ')[1];
     const secret = process.env.JWT_SECRET;
-    jwt.verify(token, secret);
+    if (!secret) {
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+    try {
+      verify(token, secret);
+    } catch (err) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
     const donors = await getAllDonors();
     return NextResponse.json(donors);
-  } catch (err) {
-    const status = err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError' ? 401 : 500;
-    return NextResponse.json({ error: err.message }, { status });
+  } catch (error) {
+    console.error('GET /api/donors error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-export async function POST(req) {
+/**
+ * POST /api/donors
+ * Create a new donor record (public donation)
+ */
+export async function POST(request) {
   try {
-    const body = await req.json();
-    const result = donorSchema.safeParse(body);
-    if (!result.success) {
-      return NextResponse.json({ error: result.error.errors }, { status: 400 });
+    const json = await request.json();
+    const parsed = donorCreateSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid request data', details: parsed.error.format() }, { status: 400 });
     }
-    const { name, email, password, address, phone } = result.data;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newDonor = await createDonor({
-      name,
-      email,
-      password: hashedPassword,
-      address,
-      phone,
-    });
+    const donorData = parsed.data;
+    const newDonor = await createDonor(donorData);
     return NextResponse.json(newDonor, { status: 201 });
-  } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (error) {
+    console.error('POST /api/donors error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
